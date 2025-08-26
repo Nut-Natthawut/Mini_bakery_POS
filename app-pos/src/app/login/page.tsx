@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { User, Lock, UserCheck, Shield } from "lucide-react";
 
 export default function LoginPage() {
+  const router = useRouter();
   const [userType, setUserType] = useState("staff");
   const [formData, setFormData] = useState({
     username: "",
@@ -20,7 +22,7 @@ export default function LoginPage() {
   };
 
   const handleSubmit = async (e: React.MouseEvent<HTMLButtonElement>) => {
-    e.preventDefault(); 
+    e.preventDefault();
     setIsLoading(true);
 
     // จำลองการ login
@@ -30,7 +32,14 @@ export default function LoginPage() {
         username: formData.username,
         password: formData.password,
       });
-      alert(`เข้าสู่ระบบในฐานะ ${userType === "staff" ? "Staff" : "Admin"}`);
+      
+      // Redirect ตามประเภทผู้ใช้
+      if (userType === "admin") {
+        router.push("/admin/home");
+      } else {
+        router.push("/staff/home");
+      }
+      
       setIsLoading(false);
     }, 1500);
   };
@@ -59,7 +68,7 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={() => setUserType("staff")}
-                className={`flex items-center justify-center p-3 rounded-lg border-2 transition-all ${
+                className={`flex items-center justify-center p-3 rounded-lg border-2 transition-all  ${
                   userType === "staff"
                     ? "border-blue-500 bg-blue-50 text-blue-700"
                     : "border-gray-200 text-gray-600 hover:border-gray-300"
@@ -178,7 +187,7 @@ export default function LoginPage() {
             >
               {isLoading ? (
                 <div className="flex items-center">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  <div className="animate-spin rounded-lg h-4 w-4 border-b-2 border-white mr-2"></div>
                   กำลังเข้าสู่ระบบ...
                 </div>
               ) : (
@@ -200,14 +209,6 @@ export default function LoginPage() {
               </a>
             </p>
           </div>
-        </div>
-
-        {/* Demo Info */}
-        <div className="mt-4 p-4 bg-white/80 backdrop-blur-sm rounded-lg">
-          <p className="text-xs text-gray-600 text-center">
-            <span className="font-semibold">Demo:</span>{" "}
-            กรอกข้อมูลใดก็ได้เพื่อทดสอบ
-          </p>
         </div>
       </div>
     </div>

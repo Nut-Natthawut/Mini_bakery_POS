@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata , Viewport } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 
@@ -18,8 +18,14 @@ export const metadata: Metadata = {
   description: "ระบบจัดการร้านอาหารขนาดเล็ก - Mini Restaurant Point of Sale System",
   keywords: "POS, restaurant, management, ระบบร้านอาหาร, จัดการร้าน",
   authors: [{ name: "Mini Restaurant POS Team" }],
-  viewport: "width=device-width, initial-scale=1",
+  
 };
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1
+  
+}
 
 export default function RootLayout({
   children,
