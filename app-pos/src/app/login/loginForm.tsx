@@ -8,7 +8,7 @@ import 'react-toastify/dist/ReactToastify.css';
 
 export default function LoginForm() {
   const router = useRouter();
-  const [userType, setUserType] = useState("staff");
+  const [userType, setUserType] = useState("Staff");
   const [formData, setFormData] = useState({
     username: "",
     password: "",
@@ -31,24 +31,19 @@ export default function LoginForm() {
       const res = await fetch('/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: formData.username, password: formData.password })
+        body: JSON.stringify({ username: formData.username, password: formData.password,userType: userType})
       });
       const data = await res.json();
       if (!res.ok) {
-        toast.error(data?.message || 'เข้าสู่ระบบไม่สำเร็จ');
+        toast.error(data?.message || 'Login failed');
         return;
       }
-      toast.success('เข้าสู่ระบบสำเร็จ');
-      if (data.role === 'Owner') {
+      toast.success('Login successful');
         router.push('/Owner/home');
-      } else if (data.role === 'admin') {
-        router.push('/admin/home');
-      } else {
-        router.push('/staff/home');
-      }
+      
     } catch(error) {
       console.error(error);
-      toast.error('มีข้อผิดพลาด กรุณาลองใหม่อีกครั้ง');
+      toast.error('There was an error. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -65,22 +60,22 @@ export default function LoginForm() {
               <Lock className="w-8 h-8 text-white" />
             </div>
             <h1 className="text-2xl font-bold text-gray-900 mb-2">
-              เข้าสู่ระบบ
+              Log in
             </h1>
-            <p className="text-gray-600">กรุณาเลือกประเภทผู้ใช้และกรอกข้อมูล</p>
+            <p className="text-gray-600">Please select your user type and fill in the information.</p>
           </div>
 
           {/* User Type Selection */}
           <div className="mb-6">
             <label className="block text-sm font-medium text-gray-700 mb-3">
-              ประเภทผู้ใช้
+              User type
             </label>
             <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
-                onClick={() => setUserType("staff")}
+                onClick={() => setUserType("Staff")}
                 className={`flex items-center justify-center p-3 rounded-lg border-2 transition-all  ${
-                  userType === "staff"
+                  userType === "Staff"
                     ? " border-[#65451F] bg-[#F1E9E5] "
                     : "border-gray-200 text-gray-600 hover:border-gray-300"
                 }`}
@@ -111,7 +106,7 @@ export default function LoginForm() {
                 htmlFor="username"
                 className="block text-sm font-medium text-gray-700 mb-2"
               >
-                ชื่อผู้ใช้
+                Username *
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -124,7 +119,7 @@ export default function LoginForm() {
                   value={formData.username}
                   onChange={handleInputChange}
                   className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#65451F] focus:border-transparent transition-colors"
-                  placeholder="กรอกชื่อผู้ใช้"
+                  placeholder="Enter your username"
                   required
                 />
               </div>
@@ -136,7 +131,7 @@ export default function LoginForm() {
                 htmlFor="password"
                 className="block text-sm font-medium text-gray-700 mb-2"
               >
-                รหัสผ่าน
+                password *
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -149,7 +144,7 @@ export default function LoginForm() {
                   value={formData.password}
                   onChange={handleInputChange}
                   className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#65451F] focus:border-transparent transition-colors"
-                  placeholder="กรอกรหัสผ่าน"
+                  placeholder="Enter password"
                   required
                 />
               </div>
@@ -168,14 +163,14 @@ export default function LoginForm() {
                   htmlFor="remember-me"
                   className="ml-2 block text-sm text-gray-700"
                 >
-                  จดจำฉันไว้
+                  Remember me
                 </label>
               </div>
               <button
                 type="button"
                 className="text-sm text-[#65451F] transition-colors"
               >
-                ลืมรหัสผ่าน?
+                Forgot your password?
               </button>
             </div>
 
@@ -199,27 +194,13 @@ export default function LoginForm() {
               {isLoading ? (
                 <div className="flex items-center">
                   <div className="animate-spin rounded-lg h-4 w-4 border-b-2 border-white mr-2"></div>
-                  กำลังเข้าสู่ระบบ...
+                  Logging in...
                 </div>
               ) : (
-                `เข้าสู่ระบบในฐานะ ${userType === "staff" ? "Staff" : "Owner"}`
+                `Log in as ${userType}`
               )}
             </button>
           </div>
-
-          {/* Footer */}
-          {/* <div className="mt-6 text-center">
-            <p className="text-xs text-gray-500">
-              โดยการเข้าสู่ระบบ คุณยอมรับ{" "}
-              <a href="#" className="text-blue-600 hover:underline">
-                เงื่อนไขการใช้งาน
-              </a>{" "}
-              และ{" "}
-              <a href="#" className="text-blue-600 hover:underline">
-                นโยบายความเป็นส่วนตัว
-              </a>
-            </p>
-          </div> */}
         </div>
       </div>
     </div>

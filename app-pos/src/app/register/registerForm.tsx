@@ -12,7 +12,7 @@ export default function RegisterForm() {
   const [formData, setFormData] = useState({
     username: "",
     password: "",
-    fullName: "", // เพิ่มฟิลด์ fullName
+    fullName: "", 
   });
   const [isLoading, setIsLoading] = useState(false);
 
@@ -27,9 +27,9 @@ export default function RegisterForm() {
   const handleSubmit = async (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
     
-    // ตรวจสอบข้อมูลพื้นฐาน
+    
     if (!formData.username.trim() || !formData.password.trim()) {
-      toast.error('กรุณากรอกข้อมูลให้ครบถ้วน');
+      toast.error('Please fill in the information completely.');
       return;
     }
 
@@ -56,20 +56,20 @@ export default function RegisterForm() {
       console.log('Registration response:', { status: res.status, data });
 
       if (!res.ok) {
-        toast.error(data?.message || 'สมัครสมาชิกไม่สำเร็จ');
+        toast.error(data?.message || 'Unsuccessful');
         return;
       }
 
-      toast.success(data?.message || 'สมัครสมาชิกสำเร็จ');
+      toast.success(data?.message || 'Successful');
       
-      // รอ toast แสดงผลแล้วค่อย redirect
+      
       setTimeout(() => {
         router.push('/login');
       }, 1500);
 
     } catch (error) {
       console.error('Registration error:', error);
-      toast.error('มีข้อผิดพลาด กรุณาลองใหม่อีกครั้ง');
+      toast.error('There was an error. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -87,15 +87,15 @@ export default function RegisterForm() {
               <Lock className="w-8 h-8 text-white" />
             </div>
             <h1 className="text-2xl font-bold text-gray-900 mb-2">
-              สมัครสมาชิก
+              Register
             </h1>
-            <p className="text-gray-600">เลือกประเภทผู้ใช้และกรอกข้อมูลเพื่อสร้างบัญชี</p>
+            <p className="text-gray-600">Select a user type and fill in the information to create an account.</p>
           </div>
 
           {/* User Type Selection */}
           <div className="mb-6">
             <label className="block text-sm font-medium text-gray-700 mb-3">
-              ประเภทผู้ใช้
+              User type
             </label>
             <div className="grid grid-cols-2 gap-3">
               <button
@@ -130,7 +130,7 @@ export default function RegisterForm() {
             {/* Username Field */}
             <div>
               <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-2">
-                ชื่อผู้ใช้ *
+                Username *
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -143,7 +143,7 @@ export default function RegisterForm() {
                   value={formData.username}
                   onChange={handleInputChange}
                   className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#65451F] focus:border-transparent transition-colors"
-                  placeholder="กรอกชื่อผู้ใช้"
+                  placeholder="Enter your username"
                   required
                   minLength={3}
                 />
@@ -153,7 +153,7 @@ export default function RegisterForm() {
             {/* Full Name Field */}
             <div>
               <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 mb-2">
-                ชื่อเต็ม (ไม่บังคับ)
+                Full name (optional)
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -166,7 +166,7 @@ export default function RegisterForm() {
                   value={formData.fullName}
                   onChange={handleInputChange}
                   className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#65451F] focus:border-transparent transition-colors"
-                  placeholder="กรอกชื่อเต็ม"
+                  placeholder="Enter your full name"
                 />
               </div>
             </div>
@@ -174,7 +174,7 @@ export default function RegisterForm() {
             {/* Password Field */}
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-                รหัสผ่าน *
+                password *
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -187,7 +187,7 @@ export default function RegisterForm() {
                   value={formData.password}
                   onChange={handleInputChange}
                   className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#65451F] focus:border-transparent transition-colors"
-                  placeholder="กรอกรหัสผ่าน (อย่างน้อย 6 ตัวอักษร)"
+                  placeholder="Enter your password (at least 6 characters)"
                   required
                   minLength={6}
                 />
@@ -206,10 +206,10 @@ export default function RegisterForm() {
               {isLoading ? (
                 <div className="flex items-center">
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  กำลังสมัครสมาชิก...
+                  Applying for membership...
                 </div>
               ) : (
-                `สมัครสมาชิกในฐานะ ${userType}`
+                `Apply for membership as ${userType}`
               )}
             </button>
           </form>
@@ -217,12 +217,12 @@ export default function RegisterForm() {
           {/* Login Link */}
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-600">
-              มีบัญชีแล้ว?{" "}
+              Already have an account?{" "}
               <button
                 onClick={() => router.push('/login')}
                 className="text-[#65451F] hover:text-[#4A2F0E] font-medium transition-colors"
               >
-                เข้าสู่ระบบ
+                Log in
               </button>
             </p>
           </div>

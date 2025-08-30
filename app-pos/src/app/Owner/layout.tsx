@@ -7,6 +7,7 @@ export default function OwnerLayout({
 }: {
   children: React.ReactNode;
 }) {
+  
   return (
     <>
     <SidebarProvider>

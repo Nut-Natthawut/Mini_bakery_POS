@@ -39,14 +39,14 @@ export async function POST(req: NextRequest) {
 
     if (existingError) {
       return NextResponse.json(
-        { message: `ตรวจสอบผู้ใช้ล้มเหลว: ${existingError.message}` },
+        { message: `User verification failed: ${existingError.message}` },
         { status: 500 }
       );
     }
 
     if (existing) {
       return NextResponse.json(
-        { message: 'ชื่อผู้ใช้นี้มีอยู่แล้ว' },
+        { message: 'This username already exists.' },
         { status: 400 }
       );
     }
@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
     const { data: newUser, error: createError } = await supabase
       .from('User')
       .insert({
-        userID: crypto.randomUUID(), // เพิ่ม userID
+        userID: crypto.randomUUID(), 
         username,
         passwordHash,
         role,
@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
 
     if (createError) {
       return NextResponse.json(
-        { message: `สร้างผู้ใช้ล้มเหลว: ${createError.message}` },
+        { message: `Failed to create user: ${createError.message}` },
         { status: 500 }
       );
     }
@@ -80,14 +80,14 @@ export async function POST(req: NextRequest) {
     // Return user data (without passwordHash)
     const { passwordHash: _, ...userWithoutPassword } = newUser;
     return NextResponse.json({
-      message: 'ลงทะเบียนสำเร็จ',
+      message: 'Registration completed',
       user: userWithoutPassword
     });
 
   } catch (err: any) {
     console.error('Registration error:', err);
     return NextResponse.json(
-      { message: `การลงทะเบียนล้มเหลว: ${err.message}` },
+      { message: `Registration failed: ${err.message}` },
       { status: 500 }
     );
   }

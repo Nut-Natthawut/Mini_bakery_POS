@@ -1,40 +1,57 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getToken } from "next-auth/jwt";
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+import { decode as decodeJwt } from 'next-auth/jwt';
 
-const NEXTAUTH_SECRET = process.env.NEXTAUTH_SECRET || process.env.JWT_SECRET || "dev_secret_change_me";
+const STAFF_ALLOWED_PATHS = [
+  '/Owner/home',    
+  '/Owner/menu',    
+  '/Owner/sale',    
+  '/Owner/orders'   
+];
+
+function isAllowedForStaff(pathname: string) {
+  return STAFF_ALLOWED_PATHS.some(p => 
+    pathname.toLowerCase() === p.toLowerCase() || 
+    pathname.toLowerCase().startsWith(p.toLowerCase() + '/')
+  );
+}
 
 export async function middleware(req: NextRequest) {
-  const { pathname } = req.nextUrl;
+  const url = req.nextUrl.clone();
+  const pathname = url.pathname;
 
-  if (pathname.startsWith("/admin") || pathname.startsWith("/staff") || pathname.startsWith("/Owner")) {
-    try {
-      const sessionToken = await getToken({ req, secret: NEXTAUTH_SECRET, secureCookie: process.env.NODE_ENV === "production" });
-      if (!sessionToken) {
-        return NextResponse.redirect(new URL("/login", req.url));
-      }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const role = (sessionToken as any).role as string | undefined;
-      const normalized = role?.toLowerCase();
+  // อ่าน token จาก auth_token cookie แทน role
+  const token = req.cookies.get('auth_token')?.value;
 
-      if (pathname.startsWith("/admin") && normalized !== "admin") {
-        return NextResponse.redirect(new URL("/staff/home", req.url));
-      }
-      if (pathname.startsWith("/Owner") && normalized !== "owner") {
-        return NextResponse.redirect(new URL("/staff/home", req.url));
-      }
-      if (pathname.startsWith("/staff") && normalized !== "staff") {
-        return NextResponse.redirect(new URL("/login", req.url));
-      }
-      return NextResponse.next();
-    } catch {
-      return NextResponse.redirect(new URL("/login", req.url));
-    }
+  if (!token) {
+    url.pathname = '/login';
+    return NextResponse.redirect(url);
   }
-  return NextResponse.next();
+
+  try {
+    // ถอดรหัส token เพื่อเอา role
+    const decoded = await decodeJwt({
+      token,
+      secret: process.env.NEXTAUTH_SECRET || process.env.JWT_SECRET || "dev_secret_change_me"
+    });
+    
+    const role = decoded?.role;
+
+    // ถ้าเป็น Staff ให้เข้าถึงได้เฉพาะ paths ที่กำหนด
+    if (role === 'Staff' && !isAllowedForStaff(pathname)) {
+      url.pathname = '/Owner/home';  // redirect กลับหน้าหลัก
+      return NextResponse.redirect(url);
+    }
+
+    return NextResponse.next();
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  } catch (error) {
+    // ถ้าถอดรหัส token ไม่ได้ ให้ redirect ไปหน้า login
+    url.pathname = '/login';
+    return NextResponse.redirect(url);
+  }
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/staff/:path*", "/Owner/:path*"],
+  matcher: ['/owner/:path*', '/api/owner/:path*'],
 };
-
-

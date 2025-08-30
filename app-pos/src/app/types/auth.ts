@@ -1,11 +1,17 @@
 import { z } from 'zod';
 
 export const RegisterSchema = z.object({
-  username: z.string().min(4, "ชื่อผู้ใช้ต้องมีอย่างน้อย 4 ตัวอักษร"),
-  password: z.string().min(6, "รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร"),
+  username: z.string().min(4, "Username must be at least 4 characters."),
+  password: z.string().min(6, "Password must be at least 6 characters."),
   role: z.enum(['Owner', 'Staff']).refine(
     (value) => value === 'Owner' || value === 'Staff',
-    { message: "Role ต้องเป็น Owner หรือ Staff เท่านั้น" }
+    { message: "Role must be Owner or Staff only." }
   ),
-  fullName: z.string().min(1, "กรุณาระบุชื่อ-นามสกุล")
+  fullName: z.string().optional().or(z.literal("")).transform((val) => val || undefined)
+});
+
+export const LoginSchema = z.object({
+  username: z.string().min(1, "Please enter your username."),
+  password: z.string().min(1, "Please enter your password."),
+  userType: z.enum(["Staff", "Owner"], { message: "Invalid user type" })
 });
