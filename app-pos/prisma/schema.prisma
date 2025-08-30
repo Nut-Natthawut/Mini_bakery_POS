@@ -14,7 +14,7 @@ model User {
   userID       String       @id @default(uuid())
   username     String       @unique
   passwordHash String
-  fullName     String
+  fullName     String?
   role         Role
   orders       Order[]
 

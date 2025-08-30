@@ -1,23 +1,27 @@
 import type { Metadata , Viewport } from "next";
-import localFont from "next/font/local";
+import { Poppins } from "next/font/google";
 import "./globals.css";
 
-const geistSans = localFont({
-  src: "./fonts/GeistVF.woff",
-  variable: "--font-geist-sans",
-  weight: "100 900",
-});
-const geistMono = localFont({
-  src: "./fonts/GeistMonoVF.woff",
-  variable: "--font-geist-mono",
-  weight: "100 900",
+const poppins = Poppins({
+  subsets: ["latin"],
+  weight: [
+    "100",
+    "200",
+    "300",
+    "400",
+    "500",
+    "600",
+    "700",
+    "800",
+    "900",
+  ],
 });
 
 export const metadata: Metadata = {
-  title: "Mini Restaurant POS",
-  description: "ระบบจัดการร้านอาหารขนาดเล็ก - Mini Restaurant Point of Sale System",
-  keywords: "POS, restaurant, management, ระบบร้านอาหาร, จัดการร้าน",
-  authors: [{ name: "Mini Restaurant POS Team" }],
+  title: "Mini bakery POS",
+  description: "ระบบจัดการร้านเบเกอรี่ขนาดเล็ก - Mini bakery Point of Sale System",
+  keywords: "POS, bakery, management, ระบบร้านอาหาร, จัดการร้าน",
+  authors: [{ name: "Mini bakery POS Team" }],
   
 };
 
@@ -34,7 +38,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="th">
-      <body className={`${geistSans.variable} ${geistMono.variable}`}>
+      <body className={`${poppins.className}`}>
         {children}
       </body>
     </html>
