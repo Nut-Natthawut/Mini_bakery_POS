@@ -11,7 +11,7 @@ const HomePage = () => {
               <Lock className="w-10 h-10 text-white" />
             </div>
             <h1 className="text-3xl font-bold text-gray-900 mb-2">Mini bakery POS</h1>
-            <p className="text-gray-600">ระบบจัดการร้านเบเกอรี่ขนาดเล็ก เริ่มต้นใช้งานได้ทันที</p>
+            <p className="text-gray-600">ระบบจัดการร้านเบเกอรี่ขนาดเล็ก เริ่มต้นใช้งานได้ทันที!</p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
