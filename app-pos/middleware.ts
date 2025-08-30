@@ -20,7 +20,7 @@ export async function middleware(req: NextRequest) {
   const url = req.nextUrl.clone();
   const pathname = url.pathname;
 
-  // อ่าน token จาก auth_token cookie แทน role
+ 
   const token = req.cookies.get('auth_token')?.value;
 
   if (!token) {
@@ -29,7 +29,7 @@ export async function middleware(req: NextRequest) {
   }
 
   try {
-    // ถอดรหัส token เพื่อเอา role
+    
     const decoded = await decodeJwt({
       token,
       secret: process.env.NEXTAUTH_SECRET || process.env.JWT_SECRET || "dev_secret_change_me"
@@ -37,16 +37,16 @@ export async function middleware(req: NextRequest) {
     
     const role = decoded?.role;
 
-    // ถ้าเป็น Staff ให้เข้าถึงได้เฉพาะ paths ที่กำหนด
+   
     if (role === 'Staff' && !isAllowedForStaff(pathname)) {
-      url.pathname = '/Owner/home';  // redirect กลับหน้าหลัก
+      url.pathname = '/Owner/home';  
       return NextResponse.redirect(url);
     }
 
     return NextResponse.next();
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   } catch (error) {
-    // ถ้าถอดรหัส token ไม่ได้ ให้ redirect ไปหน้า login
+    
     url.pathname = '/login';
     return NextResponse.redirect(url);
   }
