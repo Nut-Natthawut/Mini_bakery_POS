@@ -1,4 +1,4 @@
-# MiniRestaurant_POS
+# MiniBakery_POS
 | สมาชิก | ตำแหน่ง | 
 |---|---|
 | นายศิวกร สว่างอุระ | PO / BA |
