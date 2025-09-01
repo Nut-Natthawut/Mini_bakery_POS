@@ -39,7 +39,12 @@ export default function LoginForm() {
         return;
       }
       toast.success('Login successful');
-        router.push('/Owner/home');
+        if (userType === "Owner") {
+      router.push('/Owner/home');
+    } else {
+      
+      router.push('/Owner/home');
+    }
       
     } catch(error) {
       console.error(error);

@@ -1,3 +1,5 @@
+"use client";
+
 import {
   Home,
   SquareMenu,
@@ -29,6 +31,7 @@ import {
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 
 // Menu items.
 const items = [
@@ -47,13 +50,13 @@ const items = [
   {
     title: "Category",
     path: "/Owner/category",
-    showFor: ['Staff', 'Owner'],
+    showFor: ['Owner'],
     icon: ChartBarStacked,
   },
   {
     title: "Edit Menu",
     path: "/Owner/editmenu",
-    showFor: [, 'Owner'],
+    showFor: ['Owner'],
     icon: SquarePen,
   },
   {
@@ -64,7 +67,7 @@ const items = [
   },
   {
     title: "Employees",
-    path: "/Owner/employees",
+    path: "/Owner/employee",
     showFor: ['Owner'],
     icon: IdCardLanyard,
   },
@@ -77,11 +80,37 @@ const items = [
 ];
 
 
-export function AppSidebar({ userRole }: { userRole?: string }) {
-  //   const filteredItems = items.filter(item => 
-  //   item.showFor.includes(userRole || '')
-  // );
-    
+export function AppSidebar() {
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    // ดึงข้อมูล role จาก API endpoint
+    const fetchUserRole = async () => {
+      try {
+        setIsLoading(true);
+        const response = await fetch('/api/user');
+        if (response.ok) {
+          const data = await response.json();
+          console.log('User role from API:', data.role);
+          setUserRole(data.role);
+        } else {
+          console.error('Failed to fetch user role:', response.statusText);
+        }
+      } catch (error) {
+        console.error('Error fetching user role:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchUserRole();
+  }, []);
+
+  // กรองเมนูตาม role ของผู้ใช้
+  const filteredItems = userRole 
+    ? items.filter(item => item.showFor.includes(userRole))
+    : [];
 
   return (
     <Sidebar>
@@ -91,21 +120,26 @@ export function AppSidebar({ userRole }: { userRole?: string }) {
           <SidebarGroupLabel>Application</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu className="space-y-8">
-              
-              {items.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <a
-                      href={item.path}
-                      className="flex items-center gap-3" 
-                    >
-                      <item.icon className="w-7 h-7" />{" "}
-                  
-                      <span className="text-base">{item.title}</span>
-                    </a>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              {isLoading ? (
+                <div>Loading menu...</div>
+              ) : userRole ? (
+                filteredItems.map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild>
+                      <a
+                        href={item.path}
+                        className="flex items-center gap-3" 
+                      >
+                        <item.icon className="w-7 h-7" />{" "}
+                    
+                        <span className="text-base">{item.title}</span>
+                      </a>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))
+              ) : (
+                <div>No menu items available</div>
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -116,8 +150,8 @@ export function AppSidebar({ userRole }: { userRole?: string }) {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <SidebarMenuButton>
-                  <User2 />{userRole}
-                  <span className="ml-2">{}</span>
+                  <User2 />
+                  <span className="ml-2">{isLoading ? 'Loading...' : userRole || 'Guest'}</span>
                   <ChevronUp className="ml-auto" />
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
