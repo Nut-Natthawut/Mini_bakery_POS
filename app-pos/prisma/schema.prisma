@@ -101,7 +101,8 @@ model Receipt {
   grandTotal      Decimal   @db.Decimal(12, 2)
   amountPaid      Decimal   @db.Decimal(12, 2)
   changeAmount    Decimal   @db.Decimal(12, 2)
-  paymentMethod   String
+  
+  paymentMethod   PaymentMethod
 
   order           Order     @relation(fields: [orderID], references: [orderID])
 
@@ -123,4 +124,9 @@ model Report {
 enum Role {
   Owner
   Staff
+}
+
+enum PaymentMethod {
+  CASH
+  QR
 }
