@@ -1,6 +1,7 @@
+import CategoryForm from './categoryForm'
 const CategoryPage = () => {
   return (
-    <div>CategoryPage</div>
+    <CategoryForm />
   )
 }
 export default CategoryPage
