@@ -1,9 +1,10 @@
 import React from 'react'
+import MenuForm from './menuForm'
 
 const MenuPage = () => {
   return (
     <>
-        <h1>MenuPage</h1>
+        <MenuForm/>
     </>
   )
 }
