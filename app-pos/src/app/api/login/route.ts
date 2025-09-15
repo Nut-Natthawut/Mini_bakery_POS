@@ -1,62 +1,52 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
-import { createSupabaseServerClient } from "@/lib/supabaseServer";
 import bcrypt from "bcryptjs";
-import { encode as encodeJwt } from "next-auth/jwt";
-import { LoginSchema } from "@/app/types/auth";
-
-const NEXTAUTH_SECRET = process.env.NEXTAUTH_SECRET || process.env.JWT_SECRET || "dev_secret_change_me";
+import { prisma } from "@/lib/prisma";
+import { signToken, setAuthCookie } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { username, password, userType } = LoginSchema.parse(body);
+    const { username, password } = await req.json();
 
-    const supabase = createSupabaseServerClient();
-    const { data, error } = await supabase
-      .from("User")
-      .select("userID, username, passwordHash, role")
-      .eq("username", username)
-      .single();
-
-    if (error || !data) {
-      return NextResponse.json({ message: "User account not found" }, { status: 401 });
+    if (!username || !password) {
+      return NextResponse.json(
+        { message: "Username and password required." },
+        { status: 400 }
+      );
     }
 
-    const isValid = await bcrypt.compare(password, data.passwordHash);
-    if (!isValid) {
-      return NextResponse.json({ message: "Password is incorrect" }, { status: 401 });
+    const user = await prisma.user.findUnique({ where: { username } });
+    if (!user) {
+      return NextResponse.json(
+        { message: "Invalid username or password" },
+        { status: 401 }
+      );
     }
 
-    const expectedRole = userType === "Owner" ? "Owner" : "Staff";
-    if (data.role.toLowerCase() !== expectedRole.toLowerCase()) {
-      return NextResponse.json({ 
-        message: `You do not have access as ${userType === "Owner" ? "Owner" : "Staff"}` 
-      }, { status: 403 });
+    const match = await bcrypt.compare(password, user.passwordHash);
+    if (!match) {
+      return NextResponse.json(
+        { message: "Invalid username or password" },
+        { status: 401 }
+      );
     }
 
-    const token = await encodeJwt({
-      token: { sub: data.userID, role: data.role, username },
-      secret: NEXTAUTH_SECRET,
-      maxAge: 60 * 60 * 24 * 7,
-    });
+    
+    const token = signToken({ userID: user.userID, role: user.role });
+    setAuthCookie(token);
 
-    const res = NextResponse.json({ role: data.role }, { status: 200 });
-    res.cookies.set("auth_token", token, {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-      path: "/",
-      maxAge: 60 * 60 * 24 * 7,
-    });
-    return res;
-  } catch (err: unknown) {
-    if (err instanceof z.ZodError) {
-      const firstIssue = err.issues?.[0]?.message || "Incorrect information";
-      return NextResponse.json({ message: firstIssue }, { status: 400 });
-    }
-    return NextResponse.json({ message: "There was an error while logging in." }, { status: 500 });
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { passwordHash: _, ...safeUser } = user;
+
+    return NextResponse.json(
+      { message: "Login successful", user: safeUser },
+      { status: 200 }
+    );
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } catch (err: any) {
+    console.error("Login API error:", err);
+    return NextResponse.json(
+      { message: `Login failed: ${err.message}` },
+      { status: 500 }
+    );
   }
 }
-
-

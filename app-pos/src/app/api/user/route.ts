@@ -1,24 +1,37 @@
-import { NextRequest, NextResponse } from "next/server";
-import { decode as decodeJwt } from "next-auth/jwt";
+// src/app/api/user/route.ts
+import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import { verifyToken } from "@/lib/auth"; 
+import prisma from "@/lib/prisma";
 
-const NEXTAUTH_SECRET = process.env.NEXTAUTH_SECRET || process.env.JWT_SECRET || "dev_secret_change_me";
-
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
-    const token = req.cookies.get('auth_token')?.value;
-    
+    const cookieStore = cookies();
+    const token = cookieStore.get("token")?.value;
+
     if (!token) {
-      return NextResponse.json({ role: null }, { status: 401 });
+      return NextResponse.json({ message: "Not authenticated" }, { status: 401 });
     }
 
-    const decoded = await decodeJwt({
-      token,
-      secret: NEXTAUTH_SECRET
+    const payload = verifyToken(token) as { userID: string };
+
+    const user = await prisma.user.findUnique({
+      where: { userID: payload.userID },
+      select: {
+        userID: true,
+        username: true,
+        fullName: true,
+        role: true, 
+      },
     });
-    
-    return NextResponse.json({ role: decoded?.role || null });
-  } catch (error) {
-    console.error("Error fetching user role:", error);
-    return NextResponse.json({ role: null }, { status: 500 });
+
+    if (!user) {
+      return NextResponse.json({ message: "User not found" }, { status: 404 });
+    }
+
+    return NextResponse.json(user);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } catch (error: any) {
+    return NextResponse.json({ message: error.message }, { status: 500 });
   }
 }
