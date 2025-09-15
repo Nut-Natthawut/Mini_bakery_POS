@@ -1,4 +1,4 @@
-import CategoryForm from './CategoryForm';
+import CategoryForm from './categoryForm';
 
 const CategoryPage = () => {
   return (
