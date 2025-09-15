@@ -1,5 +1,6 @@
-"use client"
-import React, { useState } from 'react';
+"use client";
+
+import React, { useMemo, useState } from "react";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   Card,
@@ -8,16 +9,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { X, Plus, Minus } from 'lucide-react';
+import { X, Plus, Minus } from "lucide-react";
 
-//  สร้าง Type สำหรับข้อมูลรายการเมนูและตะกร้าสินค้า
+// ---------- Types ----------
 interface MenuItem {
   id: number;
   name: string;
   price: number;
   image: string;
 }
-
 interface CartItem {
   id: number;
   name: string;
@@ -25,14 +25,98 @@ interface CartItem {
   qty: number;
 }
 
+// ---------- Components สำหรับจ่ายเงิน ----------
+const CashPayment = ({
+  total,
+  onClose,
+}: {
+  total: number;
+  onClose: () => void;
+}) => {
+  const [paid, setPaid] = useState(0);
+  const change = paid - total;
+  const buttons = [1000, 500, 100, 50, 20, 10, 5, 1];
+
+  return (
+    <div>
+      <div className="bg-orange-50 rounded p-3 mb-4 text-sm space-y-2">
+        <p>
+          ยอดเงินที่ต้องชำระ : <span className="text-red-600">{total}</span>
+        </p>
+        <p>
+          ลูกค้าจ่าย : <span className="text-red-600">{paid}</span>
+        </p>
+        <p>
+          เงินทอน :{" "}
+          <span className="font-bold">{change >= 0 ? change : 0}</span>
+        </p>
+      </div>
+
+      <div className="grid grid-cols-4 gap-2 mb-4">
+        {buttons.map((val) => (
+          <button
+            key={val}
+            className="py-2 rounded-md bg-orange-100 hover:bg-orange-200"
+            onClick={() => setPaid((p) => p + val)}
+          >
+            {val}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex justify-between">
+        <button
+          className="bg-red-400 text-white px-4 py-2 rounded-md"
+          onClick={() => setPaid(0)}
+        >
+          ล้าง
+        </button>
+        <div className="flex gap-2">
+          <button className="bg-gray-300 px-4 py-2 rounded-md" onClick={onClose}>
+            ปิด
+          </button>
+          <button className="bg-blue-500 text-white px-4 py-2 rounded-md">
+            ตกลง
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const QrPayment = ({
+  total,
+  onClose,
+}: {
+  total: number;
+  onClose: () => void;
+}) => {
+  return (
+    <div className="flex flex-col items-center">
+      <p className="mb-2">ยอดชำระ : {total} บาท</p>
+      <div className="w-40 h-40 bg-gray-200 flex items-center justify-center mb-4">
+        QR Code
+      </div>
+      <button className="bg-blue-500 text-white px-4 py-2 rounded-md" onClick={onClose}>
+        เสร็จสิ้น
+      </button>
+    </div>
+  );
+};
+
+// ---------- Main Component ----------
 const MenuForm = () => {
+  // ⬇️ ย้าย state ของ popup เข้ามาไว้ใน component
+  const [isPayOpen, setIsPayOpen] = useState(false);
+  const [payMethod, setPayMethod] = useState<"cash" | "qr">("cash");
+
   //  ระบุ Type ให้กับ useState
   const [cartItems, setCartItems] = useState<CartItem[]>([
     { id: 1, name: "เค้กช็อกโกแลต", price: 199, qty: 1 },
     { id: 2, name: "คุกกี้", price: 99, qty: 2 },
   ]);
 
-  // ✅ ระบุ Type ให้กับ selectedItem (สามารถเป็น MenuItem หรือ null)
+  // ✅ selected item modal
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [quantity, setQuantity] = useState(1);
@@ -44,65 +128,64 @@ const MenuForm = () => {
     { id: 4, name: "ขนมปังเนยสด", price: 120, image: "" },
   ];
 
-  const handleCardClick = (item: MenuItem) => { //  ระบุ Type ของ item
+  const handleCardClick = (item: MenuItem) => {
     setSelectedItem(item);
     setQuantity(1);
     setIsModalOpen(true);
   };
 
   const handleAddToCart = () => {
-    //  เพิ่มการตรวจสอบ selectedItem.id ก่อนใช้งาน
     if (!selectedItem) return;
-
-    const existingItem = cartItems.find(cartItem => cartItem.id === selectedItem.id);
-
-    if (existingItem) {
-      setCartItems(cartItems.map(item =>
-        item.id === selectedItem.id
-          ? { ...item, qty: item.qty + quantity }
-          : item
-      ));
-    } else {
-      setCartItems([...cartItems, {
-        id: selectedItem.id,
-        name: selectedItem.name,
-        price: selectedItem.price,
-        qty: quantity
-      }]);
-    }
-
+    setCartItems((prev) => {
+      const exist = prev.find((i) => i.id === selectedItem.id);
+      if (exist) {
+        return prev.map((i) =>
+          i.id === selectedItem.id ? { ...i, qty: i.qty + quantity } : i
+        );
+      }
+      return [
+        ...prev,
+        {
+          id: selectedItem.id,
+          name: selectedItem.name,
+          price: selectedItem.price,
+          qty: quantity,
+        },
+      ];
+    });
     setIsModalOpen(false);
     setSelectedItem(null);
   };
 
-  const handleRemoveItem = (id: number) => { //  ระบุ Type ของ id
-    setCartItems(cartItems.filter(item => item.id !== id));
+  const handleRemoveItem = (id: number) => {
+    setCartItems((prev) => prev.filter((i) => i.id !== id));
   };
 
-  const increaseQuantity = () => {
-    setQuantity(prev => prev + 1);
+  const increaseQuantity = () => setQuantity((p) => p + 1);
+  const decreaseQuantity = () => setQuantity((p) => (p > 1 ? p - 1 : p));
+
+  const handleUpdateQty = (id: number, action: "increase" | "decrease") => {
+    setCartItems((prev) =>
+      prev.map((item) => {
+        if (item.id !== id) return item;
+        if (action === "increase") return { ...item, qty: item.qty + 1 };
+        if (action === "decrease" && item.qty > 1)
+          return { ...item, qty: item.qty - 1 };
+        return item;
+      })
+    );
   };
 
-  const decreaseQuantity = () => {
-    if (quantity > 1) {
-      setQuantity(prev => prev - 1);
-    }
-  };
+  const totalItems = useMemo(
+    () => cartItems.reduce((sum, item) => sum + item.qty, 0),
+    [cartItems]
+  );
 
-  const handleUpdateQty = (id: number, action: 'increase' | 'decrease') => {
-  setCartItems(cartItems.map(item => {
-    if (item.id === id) {
-      if (action === 'increase') {
-        return { ...item, qty: item.qty + 1 };
-      }
-      if (action === 'decrease' && item.qty > 1) {
-        return { ...item, qty: item.qty - 1 };
-      }
-    }
-    return item;
-  }));
-};
-  const totalItems = cartItems.reduce((sum, item) => sum + item.qty, 0);
+  // ⬇️ เพิ่มตัวนี้เพื่อแก้ error totalPrice
+  const totalPrice = useMemo(
+    () => cartItems.reduce((sum, item) => sum + item.price * item.qty, 0),
+    [cartItems]
+  );
 
   return (
     <>
@@ -118,8 +201,7 @@ const MenuForm = () => {
                       key={item.toLowerCase()}
                       value={item.toLowerCase()}
                       aria-label={`Toggle ${item}`}
-                      className="group w-[111px] h-[35px] rounded-full border-2 border-[#8B4513] 
-                        data-[state=on]:bg-white hover:bg-white hover:text-[#8B4513]"
+                      className="group w-[111px] h-[35px] rounded-full border-2 border-[#8B4513] data-[state=on]:bg-white hover:bg-white hover:text-[#8B4513]"
                     >
                       <div className="font-bold relative flex items-center pl-2">
                         <div className="w-5 h-5 rounded-full bg-[#D9ECD0] group-data-[state=on]:bg-green-500"></div>
@@ -136,19 +218,19 @@ const MenuForm = () => {
               {menuItems.map((item) => (
                 <Card
                   key={item.id}
-                  className="w-[219px] h-[300px] bg-white cursor-pointer hover:shadow-lg transition-shadow"
+                  className="w-[219px] h-[300px] border-none bg-white cursor-pointer hover:shadow-lg transition-shadow"
                   onClick={() => handleCardClick(item)}
                 >
                   <CardHeader>
                     <CardTitle>
-                      <div className="w-[180px] h-[180px] bg-gray-200 rounded-md flex items-center justify-center">
+                      <div className="w-[180px] h-[180px] bg-gray-200 ml-[-4px] mb-2 rounded-md flex items-center justify-center">
                         <span className="text-gray-500">รูปภาพ</span>
                       </div>
                     </CardTitle>
                     <CardDescription className="my-1">{item.name}</CardDescription>
                   </CardHeader>
                   <CardFooter className="ml-[100px]">
-                    <p className="text-[#8B4513] font-bold">{item.price} THB</p>
+                    <p className="text-[#000000] font-medium">{item.price} THB</p>
                   </CardFooter>
                 </Card>
               ))}
@@ -160,11 +242,11 @@ const MenuForm = () => {
         <div className="fixed top-0 right-0 h-screen w-[350px] bg-white rounded-l-lg shadow-lg p-4 flex flex-col">
           {/* ส่วน table */}
           <div className="flex-1 overflow-auto">
-            <div className="border rounded-lg">
-              <div className="bg-gray-50 border-b">
-                <div className="grid grid-cols-6 gap-2 p-2 text-sm font-semibold"> {/* ⚠️ เปลี่ยนเป็น 6 คอลัมน์ */}
+            <div className="border-none rounded-lg">
+              <div className="bg-[#F1E9E5] border-none  rounded-md shadow-md mb-4">
+                <div className="text-[16px] grid grid-cols-6 w-[317px] h-[69px] gap-2 p-2 text-sm font-semibold justify-center items-center ">
                   <div>No</div>
-                  <div className="col-span-2">สินค้า</div> {/* ⚠️ ใช้ col-span-2 */}
+                  <div className="col-span-2">สินค้า</div>
                   <div>ราคา</div>
                   <div>จำนวน</div>
                   <div>ลบ</div>
@@ -172,24 +254,25 @@ const MenuForm = () => {
               </div>
               <div>
                 {cartItems.map((cartItem, i) => (
-                  <div key={cartItem.id} className="grid grid-cols-6 gap-2 p-2 border-b last:border-b-0 text-sm items-center">
+                  <div
+                    key={cartItem.id}
+                    className="grid grid-cols-6 gap-2 p-2 border-b last:border-b-0 text-sm items-center"
+                  >
                     <div>{i + 1}</div>
                     <div className="col-span-2 truncate">{cartItem.name}</div>
                     <div>{cartItem.price} ฿</div>
                     <div className="flex items-center gap-1">
-                      {/*  ปุ่มลดจำนวน */}
                       <button
                         className="w-5 h-5 flex items-center justify-center text-gray-500 hover:text-red-500 disabled:opacity-50"
-                        onClick={() => handleUpdateQty(cartItem.id, 'decrease')}
+                        onClick={() => handleUpdateQty(cartItem.id, "decrease")}
                         disabled={cartItem.qty <= 1}
                       >
                         <Minus size={14} />
                       </button>
                       <span>{cartItem.qty}</span>
-                      {/*  ปุ่มเพิ่มจำนวน */}
                       <button
                         className="w-5 h-5 flex items-center justify-center text-gray-500 hover:text-green-500"
-                        onClick={() => handleUpdateQty(cartItem.id, 'increase')}
+                        onClick={() => handleUpdateQty(cartItem.id, "increase")}
                       >
                         <Plus size={14} />
                       </button>
@@ -211,19 +294,21 @@ const MenuForm = () => {
           {/* footer ชิดล่าง */}
           <div className="mt-auto flex justify-between items-center pt-4 border-t">
             <span className="font-bold">รายการ: {totalItems}</span>
-            <button className="bg-green-200 px-4 py-2 rounded-md hover:bg-green-300 transition-colors">
+            <button
+              onClick={() => setIsPayOpen(true)}
+              className="bg-green-200 px-4 py-2 rounded-md hover:bg-green-300 transition-colors"
+            >
               ดำเนินการต่อ
             </button>
           </div>
         </div>
 
-        {/* Modal แบบใหม่ตามรูป */}
+        {/* Modal เลือกจำนวนสินค้า (ของเดิม) */}
         {isModalOpen && selectedItem && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg w-[300px] max-w-[90vw] mx-4 overflow-hidden">
-              {/* Header */}
-              <div className="flex justify-between items-center p-4 border-b">
-                <h2 className="text-lg font-bold">Menu</h2>
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 ">
+            <div className="bg-white p-[20px] rounded-lg w-[711px] h-[468px] mx-4 overflow-hidden ">
+              <div className="flex justify-between items-center p-4 ">
+                <h2 className="text-lg text-[32px] font-bold">Menu</h2>
                 <button
                   onClick={() => setIsModalOpen(false)}
                   className="text-gray-500 hover:text-gray-700"
@@ -232,61 +317,97 @@ const MenuForm = () => {
                 </button>
               </div>
 
-              {/* Product Info */}
-              <div className="p-4">
-                <p className="text-sm text-gray-600 mb-3">
-                  {selectedItem.name} {selectedItem.price} บาท
-                </p>
-
-                {/* Product Image */}
-                <div className="w-full h-32 bg-gray-200 rounded-md mb-4 flex items-center justify-center">
-                  <span className="text-gray-500 text-sm">รูปภาพ</span>
-                </div>
-
-                {/* Quantity and Price Section */}
-                <div className="flex justify-between items-center mb-4">
-                  <span className="text-sm">จำนวน</span>
-                  <div className="flex items-center">
-                    <button
-                      onClick={decreaseQuantity}
-                      className="w-8 h-8 rounded-full bg-red-100 text-red-500 flex items-center justify-center hover:bg-red-200"
-                      disabled={quantity <= 1}
-                    >
-                      <Minus size={16} />
-                    </button>
-                    <span className="mx-4 font-semibold">{quantity}</span>
-                    <button
-                      onClick={increaseQuantity}
-                      className="w-8 h-8 rounded-full bg-green-100 text-green-500 flex items-center justify-center hover:bg-green-200"
-                    >
-                      <Plus size={16} />
-                    </button>
+              <div className="p-4 mb-[-20px]  flex justify-space-between ">
+                <div className="min-w-[300px]  bg-white rounded-lg p-4 ">
+                  <p className="text-[20px] font-medium text-black mb-[25px]">
+                    {selectedItem.name} {selectedItem.price} บาท
+                  </p>
+                  <div className="flex w-[200px] h-[200px] bg-gray-200 rounded-md mb-4 flex items-center justify-center">
+                    <span className="text-gray-500 text-sm">รูปภาพ</span>
                   </div>
                 </div>
 
-                {/* Total Price Bar */}
-                <div className="bg-orange-200 rounded-lg p-3 mb-4 text-center">
-                  <span className="font-semibold text-orange-800">
-                    ราคารวม : {selectedItem.price * quantity}
-                  </span>
+                <div className="p-4 ml-[-60px] mt-[40px]">
+                  <div className=" items-center mb-[50px]">
+                    <span className="text-[20px]">จำนวน</span>
+                    <div className="flex items-center mt-[20px]">
+                      <button
+                        onClick={decreaseQuantity}
+                        className="w-8 h-8 rounded-full bg-red-100 text-red-500 flex items-center justify-center hover:bg-red-200"
+                        disabled={quantity <= 1}
+                      >
+                        <Minus size={20} />
+                      </button>
+                      <span className="mx-4 font-semibold">{quantity}</span>
+                      <button
+                        onClick={increaseQuantity}
+                        className="w-8 h-8 rounded-full bg-green-100 text-green-500 flex items-center justify-center hover:bg-green-200"
+                      >
+                        <Plus size={20} />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="w-[393px] bg-orange-200 rounded-lg p-3 mb-4 text-[20px]">
+                    <span className="font-medium text-black ml-[20px]">
+                      ราคาขาย : {selectedItem.price * quantity}
+                    </span>
+                  </div>
                 </div>
+              </div>
 
-                {/* Action Buttons */}
-                <div className="flex gap-3">
+              <div className="flex-row gap-3">
+                <div className="flex justify-end gap-3">
                   <button
                     onClick={() => setIsModalOpen(false)}
-                    className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-400 transition-colors text-sm"
+                    className="w-[90px] h-[50px] bg-gray-300 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-400 transition-colors text-[20px]"
                   >
-                    ยกเลิก
+                    ปิด
                   </button>
                   <button
                     onClick={handleAddToCart}
-                    className="flex-1 bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600 transition-colors text-sm"
+                    className="w-[90px] h-[50px] bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600 transition-colors text-[20px]"
                   >
-                    สั่งซื้อ
+                    ตกลง
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* ⬇️ Popup จ่ายเงิน — ต้องอยู่ "ใน" return ของ MenuForm */}
+        {isPayOpen && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg w-[400px] p-5">
+              <div className="flex justify-between items-center border-b pb-2 mb-4">
+                <h2 className="text-xl font-bold">จ่ายเงิน</h2>
+                <button onClick={() => setIsPayOpen(false)}>✕</button>
+              </div>
+
+              <div className="flex gap-2 mb-4">
+                <button
+                  className={`flex-1 py-2 rounded-md ${
+                    payMethod === "cash" ? "bg-blue-500 text-white" : "bg-gray-100"
+                  }`}
+                  onClick={() => setPayMethod("cash")}
+                >
+                  เงินสด
+                </button>
+                <button
+                  className={`flex-1 py-2 rounded-md ${
+                    payMethod === "qr" ? "bg-blue-500 text-white" : "bg-gray-100"
+                  }`}
+                  onClick={() => setPayMethod("qr")}
+                >
+                  QR
+                </button>
+              </div>
+
+              {payMethod === "cash" ? (
+                <CashPayment total={totalPrice} onClose={() => setIsPayOpen(false)} />
+              ) : (
+                <QrPayment total={totalPrice} onClose={() => setIsPayOpen(false)} />
+              )}
             </div>
           </div>
         )}
