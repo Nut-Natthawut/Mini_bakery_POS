@@ -380,7 +380,7 @@ const MenuForm = () => {
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg w-[400px] p-5">
               <div className="flex justify-between items-center border-b pb-2 mb-4">
-                <h2 className="text-xl font-bold">จ่ายเงิน</h2>
+                <h2 className="text-xl font-bold border-none">จ่ายเงิน</h2>
                 <button onClick={() => setIsPayOpen(false)}>✕</button>
               </div>
 
