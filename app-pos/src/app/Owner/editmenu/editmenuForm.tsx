@@ -37,7 +37,7 @@ const EditMenuForm = ({ initialData, onSave }: EditMenuFormProps) => {
     <>
       <button
         onClick={() => setIsOpen(true)}
-        className="px-3 py-1 text-sm text-white bg-blue-500 rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+        className="px-3 py-1 font-poppins text-sm text-[#0B57AF] bg-[#D0DFEC] rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
       >
         แก้ไข
       </button>
@@ -57,13 +57,7 @@ const EditMenuForm = ({ initialData, onSave }: EditMenuFormProps) => {
             </button>
             
             <form onSubmit={handleSubmit}>
-              <div className="flex justify-center mb-4">
-                <img
-                  src={formData.image}
-                  alt={formData.menuName}
-                  className="w-32 h-32 object-cover rounded-md"
-                />
-              </div>
+              
 
               <div className="mb-4">
                 <label htmlFor="menuName" className="block text-sm font-medium text-gray-700">ชื่อเมนู</label>
@@ -86,6 +80,22 @@ const EditMenuForm = ({ initialData, onSave }: EditMenuFormProps) => {
                   value={formData.price}
                   onChange={handleChange}
                   className="block w-full px-3 py-2 mt-1 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">ภาพเมนู</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleChange}
+                  className="block w-full text-sm text-gray-700"
+                />
+              </div>
+
+              <div className="flex justify-center mb-4">
+                <img
+                  src={formData.image}
+                  className="w-32 h-32 object-cover rounded-md"
                 />
               </div>
 
