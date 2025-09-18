@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { clearAuthCookie } from "@/lib/auth";
 
 export async function POST() {
-  clearAuthCookie();
-  return NextResponse.json({ message: "Logged out" });
+  const response = NextResponse.json({ message: "Logged out" });
+  response.cookies.set("token", "", { httpOnly: true, expires: new Date(0) }); 
+  return response;
 }

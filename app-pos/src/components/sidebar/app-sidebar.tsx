@@ -1,5 +1,4 @@
 "use client";
-
 import {
   Home,
   SquareMenu,
@@ -30,9 +29,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
-import Link from "next/link";
 import { useEffect, useState } from "react";
-
+import useLogout from "@/hooks/uselogout";
 // Menu items.
 const items = [
   {
@@ -82,9 +80,9 @@ const items = [
 export function AppSidebar() {
   const [userRole, setUserRole] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const { handleLogout } = useLogout();
 
   useEffect(() => {
-    // ดึงข้อมูล role จาก API endpoint
     const fetchUserRole = async () => {
       try {
         setIsLoading(true);
@@ -106,10 +104,14 @@ export function AppSidebar() {
     fetchUserRole();
   }, []);
 
-  // กรองเมนูตาม role ของผู้ใช้
   const filteredItems = userRole
     ? items.filter((item) => item.showFor.includes(userRole))
     : [];
+
+  // const handleLogout = async () => {
+  //   await fetch("/api/logout", { method: "POST" });
+  //   window.location.replace("/login");
+  // };
 
   return (
     <Sidebar className="!bg-[#D3BBA1] drop-shadow-[0_4px_3px_rgba(0,0,0,0.5)] border-r border-[#D3BBA1]">
@@ -164,10 +166,8 @@ export function AppSidebar() {
                 <DropdownMenuItem className="!text-[#8B4513] hover:!bg-white hover:!text-[#8B4513] transition-all duration-200  !px-6 text-lg">
                   <span>Account</span>
                 </DropdownMenuItem>
-                <DropdownMenuItem className="!text-[#8B4513] hover:!bg-white hover:!text-[#8B4513] transition-all duration-200  !px-6 text-lg">
-                  <Link href="/login">
-                    <div>Sign out</div>
-                  </Link>
+                <DropdownMenuItem onClick={handleLogout} className="!text-[#8B4513] hover:!bg-white hover:!text-[#8B4513] transition-all duration-200  !px-6 text-lg">
+                  <span>Logout</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
