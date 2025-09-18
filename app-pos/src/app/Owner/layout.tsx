@@ -1,6 +1,7 @@
 import { AppSidebar } from "@/components/sidebar/app-sidebar";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 export default function OwnerLayout({
   children,
@@ -27,6 +28,7 @@ export default function OwnerLayout({
         </div>
       </div>
       </SidebarProvider>
+      <ToastContainer position="top-right" autoClose={2000} />
     </>
   );
 }

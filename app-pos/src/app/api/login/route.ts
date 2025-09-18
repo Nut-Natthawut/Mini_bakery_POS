@@ -5,11 +5,11 @@ import { signToken, setAuthCookie } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
   try {
-    const { username, password } = await req.json();
+    const { username, password, loginAs } = await req.json(); 
 
-    if (!username || !password) {
+    if (!username || !password || !loginAs) {
       return NextResponse.json(
-        { message: "Username and password required." },
+        { message: "Username, password and role selection required." },
         { status: 400 }
       );
     }
@@ -31,6 +31,13 @@ export async function POST(req: NextRequest) {
     }
 
     
+    if (user.role !== loginAs) {
+      return NextResponse.json(
+        { message: `You don't have ${loginAs} access. Your role is ${user.role}.` },
+        { status: 403 }
+      );
+    }
+
     const token = signToken({ userID: user.userID, role: user.role });
     setAuthCookie(token);
 
@@ -38,7 +45,11 @@ export async function POST(req: NextRequest) {
     const { passwordHash: _, ...safeUser } = user;
 
     return NextResponse.json(
-      { message: "Login successful", user: safeUser },
+      { 
+        message: "Login successful", 
+        user: safeUser,
+        redirectUrl: user.role === 'Owner' ? '/Owner' : '/employee'
+      },
       { status: 200 }
     );
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

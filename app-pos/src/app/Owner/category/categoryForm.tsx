@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 "use client";
 
 import { useState, useEffect } from "react";
@@ -19,7 +20,13 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { toast } from "react-toastify";
-import { getCategories, addCategory, updateCategory, deleteCategory, CategoryFormData } from "../../actions/categories";
+import {
+  getCategories,
+  addCategory,
+  updateCategory,
+  deleteCategory,
+  CategoryFormData,
+} from "../../actions/categories";
 
 interface Category {
   categoryID: string;
@@ -64,7 +71,10 @@ const CategoryForm = () => {
     setLoading(false);
   };
 
-  const handleDialogOpen = (type: "add" | "edit" | "delete", data?: Category) => {
+  const handleDialogOpen = (
+    type: "add" | "edit" | "delete",
+    data?: Category
+  ) => {
     setDialog({ type, open: true, data });
     setInputValue(type === "edit" && data ? data.categoryName : "");
   };
@@ -75,9 +85,15 @@ const CategoryForm = () => {
   };
 
   const handleSubmit = async () => {
+    if (dialog.type !== "delete" && !inputValue.trim()) {
+      showToast(false, "กรุณากรอกชื่อหมวดหมู่ก่อน");
+      return;
+    }
+
     setLoading(true);
     try {
       let result: CategoryFormData;
+
       if (dialog.type === "add") {
         result = await addCategory(inputValue);
         if (result.success) {
@@ -107,7 +123,16 @@ const CategoryForm = () => {
         }
       }
     } catch (err) {
-      showToast(false, `เกิดข้อผิดพลาดในการ${dialog.type === "add" ? "เพิ่ม" : dialog.type === "edit" ? "แก้ไข" : "ลบ"}ประเภท`);
+      showToast(
+        false,
+        `เกิดข้อผิดพลาดในการ${
+          dialog.type === "add"
+            ? "เพิ่ม"
+            : dialog.type === "edit"
+            ? "แก้ไข"
+            : "ลบ"
+        }ประเภท`
+      );
       console.error(err);
     }
     setLoading(false);
@@ -173,8 +198,12 @@ const CategoryForm = () => {
         <DialogContent className="sm:max-w-[700px] bg-white shadow-lg">
           <DialogHeader>
             <DialogTitle
-              className={`text-[24px] mx-auto ${
-                dialog.type === "delete" ? "text-red-600" : dialog.type === "edit" ? "text-blue-600" : ""
+              className={`text-[24px] item-start ${
+                dialog.type === "delete"
+                  ? "text-red-600"
+                  : dialog.type === "edit"
+                  ? "text-blue-600"
+                  : ""
               }`}
             >
               {dialog.type === "add" && "เพิ่ม"}
@@ -200,36 +229,55 @@ const CategoryForm = () => {
             </div>
           )}
 
-          <DialogFooter className="flex justify-end gap-2">
-            {dialog.type !== "delete" && (
-              <Button
-                variant="outline"
-                onClick={() => setInputValue("")}
-                className="w-[90px] h-[40px] bg-[#F7AEB9] hover:bg-[#f08998] text-black"
-                disabled={loading}
-              >
-                ล้าง
-              </Button>
+          <DialogFooter>
+
+            {dialog.type !== "delete" ? (
+              <div className="flex justify-between w-full">
+                <Button
+                  variant="outline"
+                  onClick={() => setInputValue("")}
+                  className="w-[90px] h-[40px] bg-[#F7AEB9] hover:bg-[#f08998] text-black"
+                  disabled={loading}
+                >
+                  ล้าง
+                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={handleDialogClose}
+                    className="w-[90px] h-[40px] bg-[#D9ECD0] hover:bg-[#c0d9b8] text-black"
+                    disabled={loading}
+                  >
+                    ปิด
+                  </Button>
+                  <Button
+                    onClick={handleSubmit}
+                    className="w-[90px] h-[40px] bg-[#1D93F9] hover:bg-sky-600 text-white"
+                    disabled={loading}
+                  >
+                    {dialog.type === "edit" ? "บันทึก" : "ตกลง"}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex justify-end w-full gap-6">
+                <Button
+                  variant="outline"
+                  onClick={handleDialogClose}
+                  className="w-[90px] h-[40px] bg-[#D9ECD0] hover:bg-[#c0d9b8] text-black"
+                  disabled={loading}
+                >
+                  ยกเลิก
+                </Button>
+                <Button
+                  onClick={handleSubmit}
+                  className="w-[90px] h-[40px] bg-[#D62D2D] hover:bg-[#f08998] text-white"
+                  disabled={loading}
+                >
+                  ลบ
+                </Button>
+              </div>
             )}
-            <Button
-              variant="outline"
-              onClick={handleDialogClose}
-              className="w-[90px] h-[40px] bg-[#D9ECD0] hover:bg-[#c0d9b8] text-black"
-              disabled={loading}
-            >
-              {dialog.type === "delete" ? "ยกเลิก" : "ปิด"}
-            </Button>
-            <Button
-              onClick={handleSubmit}
-              className={`w-[90px] h-[40px] ${
-                dialog.type === "delete"
-                  ? "bg-[#D62D2D] hover:bg-[#f08998] text-white"
-                  : "bg-[#1D93F9] hover:bg-sky-600 text-white"
-              }`}
-              disabled={loading}
-            >
-              {dialog.type === "delete" ? "ลบ" : dialog.type === "edit" ? "บันทึก" : "ตกลง"}
-            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
