@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   Card,
@@ -9,20 +9,18 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { X, Plus, Minus } from "lucide-react";
+import { X, Plus, Minus, Settings, Plus as PlusIcon } from "lucide-react";
+import { MenuData } from "@/types/type";
+import { getMenus } from "../../../actions/menu";
+import { toast } from "sonner";
 
 // ---------- Types ----------
-interface MenuItem {
-  id: number;
-  name: string;
-  price: number;
-  image: string;
-}
 interface CartItem {
-  id: number;
+  id: string;
   name: string;
   price: number;
   qty: number;
+  image?: string;
 }
 
 // ---------- Components สำหรับจ่ายเงิน ----------
@@ -109,26 +107,40 @@ const MenuForm = () => {
   // ⬇️ ย้าย state ของ popup เข้ามาไว้ใน component
   const [isPayOpen, setIsPayOpen] = useState(false);
   const [payMethod, setPayMethod] = useState<"cash" | "qr">("cash");
+  const [isManagementOpen, setIsManagementOpen] = useState(false);
 
   //  ระบุ Type ให้กับ useState
-  const [cartItems, setCartItems] = useState<CartItem[]>([
-    { id: 1, name: "เค้กช็อกโกแลต", price: 199, qty: 1 },
-    { id: 2, name: "คุกกี้", price: 99, qty: 2 },
-  ]);
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [menuItems, setMenuItems] = useState<MenuData[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   // ✅ selected item modal
-  const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
+  const [selectedItem, setSelectedItem] = useState<MenuData | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [quantity, setQuantity] = useState(1);
 
-  const menuItems: MenuItem[] = [
-    { id: 1, name: "เค้กช็อกโกแลต", price: 199, image: "" },
-    { id: 2, name: "คุกกี้ช็อกชิป", price: 150, image: "" },
-    { id: 3, name: "แอปเปิ้ลพาย", price: 180, image: "" },
-    { id: 4, name: "ขนมปังเนยสด", price: 120, image: "" },
-  ];
+  // Load menu items from database
+  useEffect(() => {
+    const fetchMenus = async () => {
+      try {
+        setIsLoading(true);
+        const result = await getMenus();
+        if (result.success && result.data) {
+          setMenuItems(result.data);
+        } else {
+          toast.error(result.error || 'ไม่สามารถโหลดข้อมูลเมนูได้');
+        }
+      } catch (error: any) {
+        toast.error(error.message || 'เกิดข้อผิดพลาดในการโหลดข้อมูล');
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-  const handleCardClick = (item: MenuItem) => {
+    fetchMenus();
+  }, []);
+
+  const handleCardClick = (item: MenuData) => {
     setSelectedItem(item);
     setQuantity(1);
     setIsModalOpen(true);
@@ -137,19 +149,20 @@ const MenuForm = () => {
   const handleAddToCart = () => {
     if (!selectedItem) return;
     setCartItems((prev) => {
-      const exist = prev.find((i) => i.id === selectedItem.id);
+      const exist = prev.find((i) => i.id === selectedItem.menuID);
       if (exist) {
         return prev.map((i) =>
-          i.id === selectedItem.id ? { ...i, qty: i.qty + quantity } : i
+          i.id === selectedItem.menuID ? { ...i, qty: i.qty + quantity } : i
         );
       }
       return [
         ...prev,
         {
-          id: selectedItem.id,
-          name: selectedItem.name,
+          id: selectedItem.menuID!,
+          name: selectedItem.menuName,
           price: selectedItem.price,
           qty: quantity,
+          image: selectedItem.imageUrl,
         },
       ];
     });
@@ -157,14 +170,14 @@ const MenuForm = () => {
     setSelectedItem(null);
   };
 
-  const handleRemoveItem = (id: number) => {
+  const handleRemoveItem = (id: string) => {
     setCartItems((prev) => prev.filter((i) => i.id !== id));
   };
 
   const increaseQuantity = () => setQuantity((p) => p + 1);
   const decreaseQuantity = () => setQuantity((p) => (p > 1 ? p - 1 : p));
 
-  const handleUpdateQty = (id: number, action: "increase" | "decrease") => {
+  const handleUpdateQty = (id: string, action: "increase" | "decrease") => {
     setCartItems((prev) =>
       prev.map((item) => {
         if (item.id !== id) return item;
@@ -174,6 +187,17 @@ const MenuForm = () => {
         return item;
       })
     );
+  };
+
+  const refreshMenus = async () => {
+    try {
+      const result = await getMenus();
+      if (result.success && result.data) {
+        setMenuItems(result.data);
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'ไม่สามารถโหลดข้อมูลเมนูได้');
+    }
   };
 
   const totalItems = useMemo(
@@ -194,7 +218,9 @@ const MenuForm = () => {
           {/* ฝั่งซ้าย = เนื้อหา */}
           <div className="flex-1 p-6">
             <header className="w-full">
-              <div className="container mx-auto px-6 h-[70px] flex items-center justify-center">
+              <div className="container mx-auto px-6 h-[70px] flex items-center justify-between">
+                
+                
                 <ToggleGroup type="multiple" variant="outline" className="flex gap-2">
                   {["All", "Cake", "Cookie", "Pie", "Bread"].map((item) => (
                     <ToggleGroupItem
@@ -215,25 +241,50 @@ const MenuForm = () => {
 
             {/* content หลัก (card menu) */}
             <aside className="grid grid-cols-3 gap-10 p-6 mx-5">
-              {menuItems.map((item) => (
-                <Card
-                  key={item.id}
-                  className="w-[219px] h-[300px] border-none bg-white cursor-pointer hover:shadow-lg transition-shadow"
-                  onClick={() => handleCardClick(item)}
-                >
-                  <CardHeader>
-                    <CardTitle>
-                      <div className="w-[180px] h-[180px] bg-gray-200 ml-[-4px] mb-2 rounded-md flex items-center justify-center">
-                        <span className="text-gray-500">รูปภาพ</span>
-                      </div>
-                    </CardTitle>
-                    <CardDescription className="my-1">{item.name}</CardDescription>
-                  </CardHeader>
-                  <CardFooter className="ml-[100px]">
-                    <p className="text-[#000000] font-medium">{item.price} THB</p>
-                  </CardFooter>
-                </Card>
-              ))}
+              {isLoading ? (
+                <div className="col-span-3 flex justify-center items-center h-64">
+                  <div className="text-lg">กำลังโหลดข้อมูล...</div>
+                </div>
+              ) : menuItems.length === 0 ? (
+                <div className="col-span-3 flex flex-col justify-center items-center h-64">
+                  <div className="text-lg text-gray-500 mb-4">ยังไม่มีเมนู</div>
+                  <button
+                    onClick={() => setIsManagementOpen(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                  >
+                    <PlusIcon size={16} />
+                    เพิ่มเมนูแรก
+                  </button>
+                </div>
+              ) : (
+                menuItems.map((item) => (
+                  <Card
+                    key={item.menuID}
+                    className="w-[219px] h-[300px] border-none bg-white cursor-pointer hover:shadow-lg transition-shadow"
+                    onClick={() => handleCardClick(item)}
+                  >
+                    <CardHeader>
+                      <CardTitle>
+                        <div className="w-[180px] h-[180px] bg-gray-200 ml-[-4px] mb-2 rounded-md flex items-center justify-center overflow-hidden">
+                          {item.imageUrl ? (
+                            <img
+                              src={item.imageUrl}
+                              alt={item.menuName}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <span className="text-gray-500">รูปภาพ</span>
+                          )}
+                        </div>
+                      </CardTitle>
+                      <CardDescription className="my-1">{item.menuName}</CardDescription>
+                    </CardHeader>
+                    <CardFooter className="ml-[100px]">
+                      <p className="text-[#000000] font-medium">{item.price} THB</p>
+                    </CardFooter>
+                  </Card>
+                ))
+              )}
             </aside>
           </div>
         </div>
@@ -320,10 +371,18 @@ const MenuForm = () => {
               <div className="p-4 mb-[-20px]  flex justify-space-between ">
                 <div className="min-w-[300px]  bg-white rounded-lg p-4 ">
                   <p className="text-[20px] font-medium text-black mb-[25px]">
-                    {selectedItem.name} {selectedItem.price} บาท
+                    {selectedItem.menuName} {selectedItem.price} บาท
                   </p>
-                  <div className="flex w-[200px] h-[200px] bg-gray-200 rounded-md mb-4 flex items-center justify-center">
-                    <span className="text-gray-500 text-sm">รูปภาพ</span>
+                  <div className="flex w-[200px] h-[200px] bg-gray-200 rounded-md mb-4 flex items-center justify-center overflow-hidden">
+                    {selectedItem.imageUrl ? (
+                      <img
+                        src={selectedItem.imageUrl}
+                        alt={selectedItem.menuName}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <span className="text-gray-500 text-sm">รูปภาพ</span>
+                    )}
                   </div>
                 </div>
 

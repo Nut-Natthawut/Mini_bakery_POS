@@ -26,7 +26,7 @@ import {
   updateCategory,
   deleteCategory,
   CategoryFormData,
-} from "../../actions/categories";
+} from "../../../actions/categories";
 
 interface Category {
   categoryID: string;
