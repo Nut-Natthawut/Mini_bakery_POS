@@ -1,25 +1,24 @@
 "use client";
-// @ts-nocheck
 /* eslint-disable */
 
 import { useEffect, useState } from "react";
 import EditMenuForm from "./editmenuForm";
-import { getMenus, createMenu, deleteMenu } from "../../../actions/menu";
-import { MenuData, MenuFormData } from "@/types/type";
+import { getMenus, createMenu, deleteMenu } from "@/actions/menu";
+import { MenuData } from "@/types/type";
 import { toast } from "sonner";
+
 const MenuList = () => {
   const [menuItems, setMenuItems] = useState<MenuData[]>([]);
   const [isAddOpen, setIsAddOpen] = useState(false);
 
-  const [newDetail, setNewDetail] = useState("");
   const [newName, setNewName] = useState("");
-  const [newPrice, setNewPrice] = useState(""); // เก็บเป็น string ใน input
-  const [newImage, setNewImage] = useState<string>(""); // เก็บเป็น dataURL หรือ URL
-
-  const [deleteTarget, setDeleteTarget] = useState<MenuData | null>(null);
+  const [newPrice, setNewPrice] = useState("");
+  const [newDetail, setNewDetail] = useState("");
   const [newImageFile, setNewImageFile] = useState<File | null>(null);
 
-  // โหลดเมนูจาก database
+  const [deleteTarget, setDeleteTarget] = useState<MenuData | null>(null);
+
+  // load menus from database or server
   useEffect(() => {
     (async () => {
       const result = await getMenus();
@@ -27,57 +26,53 @@ const MenuList = () => {
         setMenuItems(result.data || []);
         toast.success("โหลดข้อมูลเมนูสำเร็จ");
       } else {
-        // จะ toast ก็ได้ ถ้ามี lib
         toast.error(result.error || "โหลดข้อมูลเมนูไม่สำเร็จ");
       }
     })();
   }, []);
 
-  // เซฟจากฟอร์มแก้ไข (EditMenuForm จะเรียกอันนี้กลับมา)
-  const handleSave = (updatedData: MenuData) => {
+  // save edit menu
+  const handleSave = (updated: MenuData) => {
     setMenuItems((prev) =>
-      prev.map((item) =>
-        item.menuID === updatedData.menuID ? updatedData : item
-      )
+      prev.map((item) => (item.menuID === updated.menuID ? updated : item))
     );
     toast.success("บันทึกข้อมูลเมนูสำเร็จ");
   };
 
-  // เพิ่มเมนูใหม่ลง DB
+  // add menu
   const handleAddMenu = async () => {
-  const name = newName.trim();
-  const priceNum = parseFloat(newPrice);
+    const name = newName.trim();
+    const priceNum = parseFloat(newPrice);
 
-  if (!name) { toast.error("กรุณากรอกชื่อเมนู"); return; }
-  if (!Number.isFinite(priceNum) || priceNum <= 0) {
-    toast.error("ราคาต้องมากกว่า 0"); return;
-  }
+    if (!name) return toast.error("กรุณากรอกชื่อเมนู");
+    if (!Number.isFinite(priceNum) || priceNum <= 0)
+      return toast.error("ราคาต้องมากกว่า 0");
+    if (!newImageFile) return toast.error("กรุณาเลือกรูปเมนู");
 
-  //  ใช้ FormData
-  const fd = new FormData();
-  fd.append("menuName", name);
-  fd.append("price", String(priceNum));
-  if (newDetail) fd.append("menuDetail", newDetail);
-  if (newImageFile) fd.append("imageFile", newImageFile);
+    const fd = new FormData();
+    fd.append("menuName", name);
+    fd.append("price", String(priceNum));
+    if (newDetail) fd.append("menuDetail", newDetail);
+    fd.append("imageFile", newImageFile);
 
-  const result = await createMenu(fd); //  ส่ง FormData
+    const result = await createMenu(fd);
 
-  if (result.success) {
-    setMenuItems(prev => [...prev, result.data!]);
-    setNewName("");
-    setNewPrice("");
-    setNewDetail("");
-    setNewImageFile(null);
-    setIsAddOpen(false);
-    toast.success("เพิ่มเมนูสำเร็จ");
-  } else {
-    toast.error(result.error || "เพิ่มเมนูไม่สำเร็จ");
-  }
-};
+    if (result.success) {
+      setMenuItems((prev) => [...prev, result.data!]);
+      setNewName("");
+      setNewPrice("");
+      setNewDetail("");
+      setNewImageFile(null);
+      setIsAddOpen(false);
+      toast.success("เพิ่มเมนูสำเร็จ");
+    } else {
+      toast.error(result.error || "เพิ่มเมนูไม่สำเร็จ");
+    }
+  };
 
-  // ลบเมนูใน DB
+  // delete menu
   const handleDeleteMenu = async (menuID: string) => {
-    const result = await deleteMenu(menuID as unknown as string);
+    const result = await deleteMenu(menuID);
     if (result.success) {
       setMenuItems((prev) => prev.filter((item) => item.menuID !== menuID));
       setDeleteTarget(null);
@@ -87,21 +82,16 @@ const MenuList = () => {
     }
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] || null;
-    setNewImageFile(file);
-  };
-
   return (
     <div className="w-[1168px] h-[442px] mx-auto">
       <div className="w-full mx-auto py-6">
         <div className="bg-white shadow-md rounded-lg overflow-hidden">
-          {/* ส่วนหัวตาราง */}
+          {/* header */}
           <div className="grid grid-cols-5 gap-4 p-4 bg-[#BF9270] text-white font-bold">
             <div>
               <button
                 onClick={() => setIsAddOpen(true)}
-                className="px-3 py-1 bg-[#D9ECD0] text-black font-poppins rounded-md hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+                className="px-3 py-1 bg-[#D9ECD0] text-black font-poppins rounded-md hover:bg-green-600"
               >
                 เพิ่ม
               </button>
@@ -111,7 +101,7 @@ const MenuList = () => {
             <div>ราคา</div>
           </div>
 
-          {/* แถวข้อมูล */}
+          {/* body */}
           {menuItems.map((menu, index) => (
             <div
               key={menu.menuID}
@@ -126,7 +116,7 @@ const MenuList = () => {
                 />
               </div>
               <div>{menu.menuName}</div>
-              <div>฿{menu.price.toFixed(2)}</div>
+              <div>฿{Number(menu.price).toFixed(2)}</div>
               <div className="flex space-x-2">
                 <EditMenuForm initialData={menu} onUpdate={handleSave} />
                 <button
@@ -146,7 +136,6 @@ const MenuList = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
           <div className="relative w-full max-w-md p-6 bg-white rounded-lg shadow-lg">
             <h2 className="text-xl font-bold text-center mb-4">เพิ่มเมนู</h2>
-
             <button
               onClick={() => setIsAddOpen(false)}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
@@ -192,7 +181,7 @@ const MenuList = () => {
                 <input
                   type="file"
                   accept="image/*"
-                  onChange={handleImageChange}
+                  onChange={(e) => setNewImageFile(e.target.files?.[0] || null)}
                   className="block w-full text-sm text-gray-700"
                 />
               </div>
@@ -203,18 +192,18 @@ const MenuList = () => {
                   onClick={() => {
                     setNewName("");
                     setNewPrice("");
-                    setNewImage("");
+                    setNewDetail("");
+                    setNewImageFile(null);
                   }}
-                  className="px-4 py-2 text-sm bg-[#F7AEB9] text-black-700 rounded-md hover:bg-pink-300"
+                  className="px-4 py-2 text-sm bg-[#F7AEB9] rounded-md hover:bg-pink-300"
                 >
                   ล้าง
                 </button>
-
                 <div className="flex space-x-2">
                   <button
                     type="button"
                     onClick={() => setIsAddOpen(false)}
-                    className="px-4 py-2 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
+                    className="px-4 py-2 text-sm bg-gray-200 rounded-md hover:bg-gray-300"
                   >
                     ปิด
                   </button>
@@ -231,10 +220,10 @@ const MenuList = () => {
         </div>
       )}
 
-      {/* Modal ลบ */}
+      {/* Modal delete */}
       {deleteTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="relative w-4/5 max-w-2xl  max-h-[90vh] p-6 bg-white rounded-lg shadow-lg">
+          <div className="relative w-4/5 max-w-2xl p-6 bg-white rounded-lg shadow-lg">
             <h2 className="text-xl font-bold mb-4 text-center text-gray-800">
               ยืนยันการลบ
             </h2>
@@ -246,7 +235,7 @@ const MenuList = () => {
             <div className="flex justify-center space-x-4">
               <button
                 onClick={() => setDeleteTarget(null)}
-                className="px-4 py-2 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
+                className="px-4 py-2 text-sm bg-gray-200 rounded-md hover:bg-gray-300"
               >
                 ยกเลิก
               </button>

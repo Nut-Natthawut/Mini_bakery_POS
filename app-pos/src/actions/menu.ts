@@ -1,118 +1,131 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use server";
-/* eslint-disable */
+
 import prisma from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
-import { Decimal } from "@prisma/client/runtime/library";
-import type { ApiResponse, MenuData } from "@/types/type";
-import { uploadImage, deleteImage } from "@/utils/images"; // upload/delete ที่คุยกันไว้
+import { uploadImage, deleteImage } from "@/utils/images";
+import {
+  formDataToCreate,
+  formDataToUpdate,
+  createMenuSchema,
+  updateMenuSchema,
+  validateImageFile,
+  formatZodError,
+} from "@/validation/menu";
+import { MenuData } from "@/types/type";
 
-const mapMenu = (m: any): MenuData => ({
-  menuID: m.menuID,
-  menuName: m.menuName,
-  price: parseFloat(String(m.price)),
-  menuDetail: m.menuDetail ?? undefined,
-  imageUrl: m.imageUrl ?? undefined,
-  categories: [],
-  createdAt: m.createdAt.toISOString(),
-  updatedAt: m.updatedAt.toISOString(),
-});
+/* ---------- Helpers ---------- */
+function mapMenu(m: any): MenuData {
+  return {
+    menuID: m.menuID,
+    menuName: m.menuName,
+    price: Number(m.price), // ให้ UI เอาไป toFixed ได้
+    menuDetail: m.menuDetail ?? undefined,
+    imageUrl: m.imageUrl ?? undefined,
+    createdAt: m.createdAt?.toISOString?.() ?? undefined,
+    updatedAt: m.updatedAt?.toISOString?.() ?? undefined,
+  };
+}
 
-export async function getMenus(): Promise<ApiResponse<MenuData[]>> {
+/* ---------- GET ---------- */
+export async function getMenus() {
   try {
-    const menus = await prisma.menu.findMany({ orderBy: { createdAt: "desc" } });
-    return { success: true, data: menus.map(mapMenu) };
-  } catch (err: any) {
-    return { success: false, error: err.message };
+    const menus = await prisma.menu.findMany({
+      orderBy: { createdAt: "desc" },
+    });
+    return { success: true, data: menus.map(mapMenu) as MenuData[] };
+  } catch {
+    return { success: false, error: "โหลดข้อมูลเมนูไม่สำเร็จ" };
   }
 }
 
-/** รับ FormData จาก client */
-export async function createMenu(fd: FormData): Promise<ApiResponse<MenuData>> {
+/* ---------- CREATE ---------- */
+export async function createMenu(fd: FormData) {
   try {
-    const menuName = String(fd.get("menuName") || "").trim();
-    const price = Number(fd.get("price") || 0);
-    const menuDetail = (fd.get("menuDetail") as string) || null;
-    const imageFile = fd.get("imageFile") as File | null;
+    // 1) FormData → object
+    const parsed = formDataToCreate(fd);
+    // 2) zod validate
+    const validated = createMenuSchema.parse(parsed);
 
-    if (!menuName) return { success: false, error: "กรุณากรอกชื่อเมนู" };
-    if (!Number.isFinite(price) || price <= 0) {
-      return { success: false, error: "ราคาต้องมากกว่า 0" };
-    }
+    // 3)  (required = true)
+    const imgCheck = validateImageFile(parsed.imageFile, true);
+    if (!imgCheck.isValid) throw new Error(imgCheck.error);
 
-    let imageUrl: string | null = null;
-    if (imageFile && imageFile.size > 0) {
-      imageUrl = await uploadImage(imageFile); //  อัปโหลดไป Supabase แล้วคืน public URL
-    }
+    // 4) upload (ถ้ามาถึงนี่แปลว่ามีไฟล์แล้ว)
+    const imageUrl = await uploadImage(parsed.imageFile!);
 
+    // 5) save DB
     const created = await prisma.menu.create({
       data: {
-        menuName,
-        price: new Decimal(price),
-        menuDetail,
+        menuName: validated.menuName,
+        price: validated.price, // Prisma Decimal  number or string
+        menuDetail: validated.menuDetail || null,
         imageUrl,
       },
     });
 
-    revalidatePath("/owner/menu");
+    revalidatePath("/Owner/editmenu");
     return { success: true, data: mapMenu(created) };
-  } catch (err: any) {
-    return { success: false, error: err.message };
+  } catch (e) {
+    return { success: false, error: formatZodError(e) };
   }
 }
 
-/**  รับ FormData จาก client */
-export async function updateMenu(fd: FormData): Promise<ApiResponse<MenuData>> {
+/* ---------- UPDATE ---------- */
+export async function updateMenu(fd: FormData) {
   try {
-    const menuID = String(fd.get("menuID") || "");
-    const menuName = String(fd.get("menuName") || "").trim();
-    const price = Number(fd.get("price") || 0);
-    const menuDetail = (fd.get("menuDetail") as string) || null;
-    const imageFile = fd.get("imageFile") as File | null;
+    // 1) FormData → object
+    const parsed = formDataToUpdate(fd);
+    // 2) zod validate
+    const validated = updateMenuSchema.parse(parsed);
 
-    if (!menuID) return { success: false, error: "ไม่พบเมนูที่จะอัปเดต" };
-    if (!menuName) return { success: false, error: "กรุณากรอกชื่อเมนู" };
-    if (!Number.isFinite(price) || price <= 0) {
-      return { success: false, error: "ราคาต้องมากกว่า 0" };
+    // 3) find existing menu
+    const old = await prisma.menu.findUnique({
+      where: { menuID: validated.menuID },
+    });
+    if (!old) throw new Error("ไม่พบเมนูที่จะอัปเดต");
+
+    // 4) image (required = false)
+    let nextImageUrl = old.imageUrl ?? null;
+    const imgCheck = validateImageFile(parsed.imageFile, false);
+    if (!imgCheck.isValid) throw new Error(imgCheck.error);
+
+    // if imageFile is provided → upload new & delete old
+    if (parsed.imageFile) {
+      if (nextImageUrl) await deleteImage(nextImageUrl);
+      nextImageUrl = await uploadImage(parsed.imageFile);
     }
 
-    const current = await prisma.menu.findUnique({ where: { menuID } });
-    if (!current) return { success: false, error: "เมนูไม่พบ" };
-
-    let imageUrl = current.imageUrl as string | null;
-
-    if (imageFile && imageFile.size > 0) {
-      if (imageUrl) await deleteImage(imageUrl); 
-      imageUrl = await uploadImage(imageFile);
-    }
-
+    // 5) update DB
     const updated = await prisma.menu.update({
-      where: { menuID },
+      where: { menuID: validated.menuID },
       data: {
-        menuName,
-        price: new Decimal(price),
-        menuDetail,
-        imageUrl,
+        menuName: validated.menuName,
+        price: validated.price,
+        menuDetail: validated.menuDetail || null,
+        imageUrl: nextImageUrl,
       },
     });
 
-    revalidatePath("/owner/menu");
+    revalidatePath("/Owner/editmenu");
     return { success: true, data: mapMenu(updated) };
-  } catch (err: any) {
-    return { success: false, error: err.message };
+  } catch (e) {
+    return { success: false, error: formatZodError(e) };
   }
 }
 
-export async function deleteMenu(menuID: string): Promise<ApiResponse<null>> {
+/* ---------- DELETE ---------- */
+export async function deleteMenu(menuID: string) {
   try {
-    const m = await prisma.menu.findUnique({ where: { menuID } });
-    if (!m) return { success: false, error: "เมนูไม่พบ" };
+    const old = await prisma.menu.findUnique({ where: { menuID } });
+    if (!old) throw new Error("ไม่พบเมนูที่จะลบ");
 
-    if (m.imageUrl) await deleteImage(m.imageUrl);
+    if (old.imageUrl) await deleteImage(old.imageUrl);
     await prisma.menu.delete({ where: { menuID } });
 
-    revalidatePath("/owner/menu");
-    return { success: true, data: null };
-  } catch (err: any) {
-    return { success: false, error: err.message };
+    revalidatePath("/Owner/editmenu");
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: formatZodError(e) };
   }
 }
