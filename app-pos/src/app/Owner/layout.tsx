@@ -11,9 +11,9 @@ export default function OwnerLayout({
 }) {
   return (
     <>
-      <SidebarProvider className="h-screen bg-[#FFFDE4]">
+      <SidebarProvider className="h-screen w-full bg-[#FFFDE4]">
         <AppSidebar />
-        <div className="min-h-screen">
+        <div className="min-h-screen bg-[#FFFDE4]">
           <div className="flex">
             <main className="flex-1 p-6">
               <SidebarTrigger className="absolute top-4 z-10 w-10 hover:bg-white transition-all duration-200 [&_svg]:w-6 [&_svg]:h-6" />

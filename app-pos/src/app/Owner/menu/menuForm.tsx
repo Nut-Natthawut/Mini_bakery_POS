@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import React, { useMemo, useState, useEffect } from "react";
@@ -9,7 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { X, Plus, Minus, Settings, Plus as PlusIcon } from "lucide-react";
+import { X, Plus, Minus, Plus as PlusIcon } from "lucide-react";
 import { MenuData } from "@/types/type";
 import { getMenus } from "../../../actions/menu";
 import { toast } from "sonner";
@@ -104,7 +105,7 @@ const QrPayment = ({
 
 // ---------- Main Component ----------
 const MenuForm = () => {
-  // ⬇️ ย้าย state ของ popup เข้ามาไว้ใน component
+  //  ย้าย state ของ popup เข้ามาไว้ใน component
   const [isPayOpen, setIsPayOpen] = useState(false);
   const [payMethod, setPayMethod] = useState<"cash" | "qr">("cash");
   const [isManagementOpen, setIsManagementOpen] = useState(false);
@@ -114,7 +115,7 @@ const MenuForm = () => {
   const [menuItems, setMenuItems] = useState<MenuData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // ✅ selected item modal
+  // selected item modal
   const [selectedItem, setSelectedItem] = useState<MenuData | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [quantity, setQuantity] = useState(1);
@@ -205,7 +206,7 @@ const MenuForm = () => {
     [cartItems]
   );
 
-  // ⬇️ เพิ่มตัวนี้เพื่อแก้ error totalPrice
+  // เพิ่มตัวนี้เพื่อแก้ error totalPrice
   const totalPrice = useMemo(
     () => cartItems.reduce((sum, item) => sum + item.price * item.qty, 0),
     [cartItems]
@@ -213,7 +214,7 @@ const MenuForm = () => {
 
   return (
     <>
-      <div className="item-center justify-center">
+      <div className="item-center justify-center bg-[#FFFDE4] ">
         <div className="flex">
           {/* ฝั่งซ้าย = เนื้อหา */}
           <div className="flex-1 p-6">
@@ -434,7 +435,7 @@ const MenuForm = () => {
           </div>
         )}
 
-        {/* ⬇️ Popup จ่ายเงิน — ต้องอยู่ "ใน" return ของ MenuForm */}
+        {/*  Popup  MenuForm */}
         {isPayOpen && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg w-[400px] p-5">
