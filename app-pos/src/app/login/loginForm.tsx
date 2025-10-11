@@ -12,6 +12,7 @@ export default function LoginForm() {
   const [formData, setFormData] = useState({
     username: "",
     password: "",
+    loginAs: ""
   });
   const [isLoading, setIsLoading] = useState(false);
 
@@ -31,7 +32,7 @@ export default function LoginForm() {
       const res = await fetch('/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: formData.username, password: formData.password,userType: userType})
+        body: JSON.stringify({ username: formData.username, password: formData.password, loginAs: userType }),
       });
       const data = await res.json();
       if (!res.ok) {

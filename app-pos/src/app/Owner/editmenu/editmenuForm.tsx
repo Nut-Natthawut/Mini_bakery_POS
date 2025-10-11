@@ -1,43 +1,74 @@
-// src/app/Owner/editmenu/editmenuForm.tsx
+"use client";
+/* eslint-disable */
 
-import { useState } from 'react';
-
-// กำหนด Interface สำหรับข้อมูลเมนูและ props
-interface MenuData {
-  id: number;
-  image: string;
-  menuName: string;
-  price: number;
-}
+import { useState } from "react";
+import { MenuData } from "@/types/type";
+import { updateMenu } from "@/actions/menu";
+import { toast } from "sonner";
 
 interface EditMenuFormProps {
   initialData: MenuData;
-  onSave: (updatedData: MenuData) => void;
+  onUpdate: (updatedData: MenuData) => void;
 }
 
-const EditMenuForm = ({ initialData, onSave }: EditMenuFormProps) => {
+const EditMenuForm = ({ initialData, onUpdate }: EditMenuFormProps) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [formData, setFormData] = useState<MenuData>(initialData);
+  const [form, setForm] = useState({
+    menuName: initialData.menuName,
+    price: String(initialData.price),
+    menuDetail: initialData.menuDetail || "",
+    imageFile: null as File | null,
+  });
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData((prevData: MenuData) => ({
-      ...prevData,
-      [name]: name === 'price' ? parseFloat(value) : value,
-    }));
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
+    const { name, value, type } = e.target;
+    if (type === "file") {
+      const file = (e.target as HTMLInputElement).files?.[0] || null;
+      setForm((prev) => ({ ...prev, imageFile: file }));
+    } else {
+      setForm((prev) => ({ ...prev, [name]: value }));
+    }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(formData);
-    setIsOpen(false);
+    if (!form.menuName.trim()) return toast.error("กรุณากรอกชื่อเมนู");
+    const priceNum = parseFloat(form.price);
+    if (!Number.isFinite(priceNum) || priceNum <= 0)
+      return toast.error("ราคาต้องมากกว่า 0");
+
+    setIsLoading(true);
+    
+    //send Formdata to server 
+    try {
+      const fd = new FormData();
+      fd.append("menuID", initialData.menuID);
+      fd.append("menuName", form.menuName.trim());
+      fd.append("price", String(priceNum));
+      if (form.menuDetail) fd.append("menuDetail", form.menuDetail);
+      if (form.imageFile) fd.append("imageFile", form.imageFile);
+
+      const result = await updateMenu(fd);
+      if (!result.success) throw new Error(result.error);
+
+      onUpdate(result.data!);
+      toast.success("อัพเดทเมนูสำเร็จ");
+      setIsOpen(false);
+    } catch (err: any) {
+      toast.error(err.message || "เกิดข้อผิดพลาดในการอัพเดทเมนู");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
     <>
       <button
         onClick={() => setIsOpen(true)}
-        className="px-3 py-1 font-poppins text-sm text-[#0B57AF] bg-[#D0DFEC] rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+        className="px-3 py-1 text-sm text-[#0B57AF] bg-[#D0DFEC] rounded-md hover:bg-blue-200"
       >
         แก้ไข
       </button>
@@ -46,72 +77,85 @@ const EditMenuForm = ({ initialData, onSave }: EditMenuFormProps) => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
           <div className="relative w-full max-w-md p-6 bg-white rounded-lg shadow-lg">
             <h2 className="text-xl font-bold text-gray-800 mb-4">แก้ไขเมนู</h2>
-            
             <button
               onClick={() => setIsOpen(false)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 focus:outline-none"
+              disabled={isLoading}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              ✕
             </button>
-            
-            <form onSubmit={handleSubmit}>
-              
 
-              <div className="mb-4">
-                <label htmlFor="menuName" className="block text-sm font-medium text-gray-700">ชื่อเมนู</label>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium">ชื่อเมนู</label>
                 <input
                   type="text"
-                  id="menuName"
                   name="menuName"
-                  value={formData.menuName}
+                  value={form.menuName}
                   onChange={handleChange}
-                  className="block w-full px-3 py-2 mt-1 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  className="block w-full border border-gray-300 rounded-md px-3 py-2"
+                  disabled={isLoading}
                 />
               </div>
 
-              <div className="mb-6">
-                <label htmlFor="price" className="block text-sm font-medium text-gray-700">ราคา</label>
+              <div>
+                <label className="block text-sm font-medium">ราคา</label>
                 <input
                   type="number"
-                  id="price"
                   name="price"
-                  value={formData.price}
+                  value={form.price}
                   onChange={handleChange}
-                  className="block w-full px-3 py-2 mt-1 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  className="block w-full border border-gray-300 rounded-md px-3 py-2"
+                  disabled={isLoading}
                 />
               </div>
+
               <div>
-                <label className="block text-sm font-medium text-gray-700">ภาพเมนู</label>
+                <label className="block text-sm font-medium">รายละเอียด</label>
+                <textarea
+                  name="menuDetail"
+                  value={form.menuDetail}
+                  onChange={handleChange}
+                  rows={3}
+                  className="block w-full border border-gray-300 rounded-md px-3 py-2"
+                  disabled={isLoading}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium">รูปเมนู</label>
                 <input
                   type="file"
+                  name="imageFile"
                   accept="image/*"
                   onChange={handleChange}
-                  className="block w-full text-sm text-gray-700"
+                  disabled={isLoading}
                 />
               </div>
 
-              <div className="flex justify-center mb-4">
+              {initialData.imageUrl && (
                 <img
-                  src={formData.image}
-                  className="w-32 h-32 object-cover rounded-md"
+                  src={initialData.imageUrl}
+                  alt={initialData.menuName}
+                  className="w-24 h-24 object-cover rounded-md border mx-auto"
                 />
-              </div>
+              )}
 
-              <div className="flex justify-end space-x-2">
+              <div className="flex justify-end space-x-2 pt-4">
                 <button
                   type="button"
                   onClick={() => setIsOpen(false)}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+                  className="px-4 py-2 text-sm bg-gray-200 rounded-md"
+                  disabled={isLoading}
                 >
                   ยกเลิก
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                  className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  disabled={isLoading}
                 >
-                  บันทึก
+                  {isLoading ? "กำลังบันทึก..." : "บันทึก"}
                 </button>
               </div>
             </form>
