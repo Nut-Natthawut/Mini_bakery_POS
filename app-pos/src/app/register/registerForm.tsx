@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { User, Lock, UserCheck, Shield } from "lucide-react";
-import { toast, ToastContainer } from "react-toastify";
+import { toast } from "sonner";
 import 'react-toastify/dist/ReactToastify.css';
 
 export default function RegisterForm() {
@@ -79,8 +79,6 @@ export default function RegisterForm() {
     <div className="min-h-screen bg-[#FFEDDB] flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="bg-white rounded-2xl shadow-xl p-8">
-          <ToastContainer position="top-center" autoClose={3000} />
-          
           {/* LOGO */}
           <div className="text-center mb-8">
             <div className="mx-auto w-16 h-16 bg-gradient-to-r from-[#BF9270] to-[#EAD3B4] rounded-full flex items-center justify-center mb-4">

@@ -1,7 +1,7 @@
 import type { Metadata , Viewport } from "next";
 import { Poppins } from "next/font/google";
 import "./globals.css";
-
+import AppToaster from "@/components/ui/AppToaster";
 const poppins = Poppins({
   subsets: ["latin"],
   weight: [
@@ -40,6 +40,7 @@ export default function RootLayout({
     <html lang="th">
       <body className={`${poppins.className}`}>
         {children}
+        <AppToaster />
       </body>
     </html>
   );

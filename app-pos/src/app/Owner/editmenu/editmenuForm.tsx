@@ -19,6 +19,7 @@ const EditMenuForm = ({ initialData, onUpdate }: EditMenuFormProps) => {
     menuDetail: initialData.menuDetail || "",
     imageFile: null as File | null,
   });
+  
   const [isLoading, setIsLoading] = useState(false);
 
   const handleChange = (

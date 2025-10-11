@@ -11,7 +11,8 @@ export default function AppToaster() {
       closeButton
       expand
       toastOptions={{
-        className: "font-poppins text-sm shadow-md",
+        className: "font-poppins text-lg shadow-md",
+        style: { zIndex: 2147483647 },
       }}
     />
   );
