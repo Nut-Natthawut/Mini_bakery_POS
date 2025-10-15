@@ -1,296 +1,470 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import type { Role, UIUser } from "@/types/type";
+import { toast, Toaster } from "sonner";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import {
+  UIRegisterSchema,
+  UIUpdateUserSchema,
+  type UIRegisterInput,
+  type UIUpdateUserInput,
+  toCreatePayload,
+  toUpdatePayload,
+} from "@/types/auth-ui";
 
-type Employee = {
-  id: string;
-  name: string;
-  role: "Staff";
-  avatar: string; // รองรับทั้ง path ปกติ และ blob: ที่มาจาก createObjectURL
-};
+export default function EmployeesPage() {
+  const [rows, setRows] = useState<UIUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<UIUser | null>(null);
+  const [confirming, setConfirming] = useState<UIUser | null>(null);
 
-// ป้องกันเคสที่บาง runtime ไม่มี crypto.randomUUID (เช่น บราวเซอร์เก่าหรือ polyfill หาย)
-const makeId = () => {
-  const g: any = globalThis as any;
-  if (g?.crypto?.randomUUID) return g.crypto.randomUUID();
-  // fallback แบบง่าย
-  return "id-" + Math.random().toString(36).slice(2) + Date.now().toString(36);
-};
+  // === react-hook-form (สลับ schema ตามโหมด เพิ่ม/แก้ไข) ===
+  const isEdit = Boolean(editing);
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm<UIRegisterInput | UIUpdateUserInput>({
+    resolver: zodResolver(isEdit ? UIUpdateUserSchema : UIRegisterSchema),
+    mode: "onBlur",
+  });
 
-const seedEmployees: Employee[] = [
-  { id: makeId(), name: "ณัฐวุฒิ", role: "Staff", avatar: "/employees/emp1.jpg" },
-  { id: makeId(), name: "ศิวกร", role: "Staff", avatar: "/employees/emp2.jpg" },
-  { id: makeId(), name: "นพรกร", role: "Staff", avatar: "/employees/emp3.jpg" },
-  { id: makeId(), name: "ชลกร", role: "Staff", avatar: "/employees/emp4.jpg" },
-];
-
-export default function EmployeePage() {
-  const [employees, setEmployees] = useState<Employee[]>(seedEmployees);
-  const [showModal, setShowModal] = useState(false);
-  const [editing, setEditing] = useState<Employee | null>(null);
-  const [showPw, setShowPw] = useState(false);
-
-  // อ้างอิงฟอร์ม เพื่อ reset ได้สะดวกและเคลียร์ state ตอนปิด
-  const formRef = useRef<HTMLFormElement | null>(null);
-
-  // ปิดโมดอลแบบรวมศูนย์ + เคลียร์ของที่ต้องเคลียร์
-  const closeModal = () => {
-    formRef.current?.reset();
-    setShowPw(false);
-    setEditing(null);
-    setShowModal(false);
+  // === โหลดข้อมูลจาก API ===
+  const load = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await fetch("/api/users?role=Staff", { cache: "no-store" });
+      const out = await res.json();
+      if (!res.ok) throw new Error(out?.message || res.statusText);
+      setRows(out);
+    } catch (e: any) {
+      const msg = e?.message || "โหลดข้อมูลไม่สำเร็จ";
+      setError(msg);
+      toast.error(msg, { id: "users-load" });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // ปิดด้วย Esc
+  // กัน Strict Mode เรียกซ้ำ
+  const didInit = useRef(false);
   useEffect(() => {
-    if (!showModal) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") closeModal();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [showModal]);
+    if (didInit.current) return;
+    didInit.current = true;
+    load();
+  }, []);
 
-  const handleSave = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const fd = new FormData(e.currentTarget);
-    const name = (fd.get("name") as string | null)?.trim() || "";
-    const password = (fd.get("password") as string) || "";
-    const confirm = (fd.get("confirmPassword") as string) || "";
-    const file = (fd.get("avatar") as File) ?? null;
+  // === เปิดโมดอล: เพิ่ม ===
+  const onOpenAdd = () => {
+    setEditing(null);
+    reset({
+      username: "",
+      password: "",
+      confirmPassword: "",
+      role: "Staff",
+      fullName: "",
+    } as UIRegisterInput);
+    setOpen(true);
+  };
 
-    if (!name) return alert("กรุณากรอกชื่อ");
-    // ถ้าเป็นการเพิ่มใหม่ ค่อยบังคับรหัสผ่าน (ตอนแก้ไขไม่บังคับ)
-    if (!editing) {
-      if (!password) return alert("กรุณากรอกรหัสผ่าน");
-      if (password !== confirm) return alert("รหัสผ่านไม่ตรงกัน");
+  // === เปิดโมดอล: แก้ไข ===
+  const onOpenEdit = (u: UIUser) => {
+    setEditing(u);
+    reset({
+      role: u.role as Role,
+      fullName: u.fullName ?? "",
+      newPassword: "",
+    } as UIUpdateUserInput);
+    setOpen(true);
+  };
+
+  const close = () => {
+    reset({} as any);
+    setEditing(null);
+    setOpen(false);
+  };
+
+  // === Submit หลังผ่าน Zod แล้ว ===
+  const submit = handleSubmit(async (values:any) => {
+    try {
+      let res: Response;
+      if (isEdit && editing) {
+        const body = toUpdatePayload(values as UIUpdateUserInput);
+        res = await fetch(`/api/users/${editing.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+      } else {
+        const body = toCreatePayload(values as UIRegisterInput);
+        res = await fetch(`/api/users`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+      }
+
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(out?.message || res.statusText);
+
+      toast.success(isEdit ? "อัปเดตผู้ใช้สำเร็จ" : "สร้างผู้ใช้สำเร็จ", {
+        id:
+          isEdit && editing
+            ? `update-${editing.id}`
+            : `create-${(values as any).username || "new"}`,
+      });
+
+      await load();
+      close();
+    } catch (e: any) {
+      toast.error(e?.message || "บันทึกไม่สำเร็จ", { id: "user-save" });
     }
+  });
 
-    // ถ้าแนบไฟล์ ใช้ blob URL; ถ้าไม่แนบ ให้คงค่าเดิม (ตอนแก้ไข) หรือใช้ default (ตอนเพิ่ม)
-    const avatar =
-      file && file.size > 0
-        ? URL.createObjectURL(file)
-        : editing?.avatar ?? "/employees/default.jpg";
+  // === Confirm Delete ===
+  const handleConfirmDelete = async () => {
+    if (!confirming) return;
+    const u = confirming;
+    const tid = `delete-${u.id}`;
 
-    if (editing) {
-      setEmployees((prev) =>
-        prev.map((emp) => (emp.id === editing.id ? { ...emp, name, avatar } : emp))
-      );
-    } else {
-      const newEmp: Employee = {
-        id: makeId(),
-        name,
-        role: "Staff",
-        avatar,
-      };
-      setEmployees((prev) => [...prev, newEmp]);
+    toast.loading("กำลังลบผู้ใช้...", { id: tid });
+    try {
+      const res = await fetch(`/api/users/${u.id}`, { method: "DELETE" });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(out?.message || res.statusText);
+
+      toast.success("ลบผู้ใช้สำเร็จ", { id: tid });
+      await load();
+    } catch (e: any) {
+      toast.error(e?.message || "ลบไม่สำเร็จ", { id: tid });
+    } finally {
+      setConfirming(null);
     }
-
-    closeModal();
   };
 
   return (
     <main className="p-7">
+      <Toaster richColors position="top-center" />
+
+      <div className="mb-4 flex items-center justify-between">
+        <button
+          className="rounded-md px-4 py-2 text-sm font-semibold text-black"
+          style={{ background: "#C6D6AF" }}
+          onClick={onOpenAdd}
+        >
+          เพิ่ม
+        </button>
+      </div>
+
       <div className="mx-auto w-full rounded-xl border border-black/60 bg-white shadow">
         <div className="overflow-hidden rounded-xl border border-black/30">
           <table className="w-full table-fixed border-separate border-spacing-0">
             <thead>
-              <tr className="text-left bg-[#B88C69]">
+              <tr className="text-left" style={{ background: "#B88C69" }}>
                 <th className="w-16 border-b border-black/60 px-4 py-3 font-semibold">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditing(null);
-                      setShowModal(true);
-                    }}
-                    className="rounded-md bg-[#C6D6AF] px-4 py-2 text-sm font-semibold text-black"
-                  >
-                    เพิ่ม
-                  </button>
+                  ลำดับ
                 </th>
-                <th scope="col" className="w-28 border-b border-black/60 px-4 py-3 font-semibold">
-                  ภาพ
+                <th className="w-64 border-b border-black/60 px-4 py-3 font-semibold">
+                  Username
                 </th>
-                <th scope="col" className="border-b border-black/60 px-4 py-3 font-semibold">
-                  ชื่อ
+                <th className="border-b border-black/60 px-4 py-3 font-semibold">
+                  ชื่อ-สกุล
                 </th>
-                <th scope="col" className="w-40 border-b border-black/60 px-4 py-3 font-semibold">
-                  หน้าที่
+                <th className="w-40 border-b border-black/60 px-4 py-3 font-semibold">
+                  บทบาท
                 </th>
-                <th scope="col" className="w-44 border-b border-black/60 px-4 py-3 text-right font-semibold"></th>
+                <th className="w-44 border-b border-black/60 px-4 py-3 text-right font-semibold"></th>
               </tr>
             </thead>
             <tbody>
-              {employees.map((e, idx) => (
-                <tr key={e.id}>
-                  <td className="border-b border-black/30 px-4 py-4 text-center">{idx + 1}</td>
-                  <td className="border-b border-black/30 px-4 py-3">
-                    <div className="h-14 w-14 overflow-hidden rounded-lg border border-black/30">
-                      {/* revoke blob URL หลังโหลดเสร็จ เพื่อลด memory leak */}
-                      <img
-                        src={e.avatar}
-                        alt={e.name}
-                        className="h-full w-full object-cover"
-                        onLoad={(ev) => {
-                          const src = (ev.currentTarget as HTMLImageElement).src;
-                          if (src.startsWith("blob:")) {
-                            try {
-                              URL.revokeObjectURL(src);
-                            } catch {}
-                          }
-                        }}
-                      />
-                    </div>
-                  </td>
-                  <td className="border-b border-black/30 px-4 py-4">{e.name}</td>
-                  <td className="border-b border-black/30 px-4 py-4">
-                    <span className="inline-block rounded-md bg-[#BDE0A8] px-3 py-1 text-sm font-semibold text-black">
-                      {e.role}
-                    </span>
-                  </td>
-                  <td className="border-b border-black/30 px-4 py-4">
-                    <div className="flex items-center justify-end gap-3">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditing(e);
-                          setShowModal(true);
-                        }}
-                        className="rounded-md bg-[#A6C6DE] px-4 py-2 text-sm font-semibold text-black"
-                      >
-                        แก้ไข
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (confirm(`ยืนยันลบ ${e.name}?`)) {
-                            setEmployees((prev) => prev.filter((p) => p.id !== e.id));
-                          }
-                        }}
-                        className="rounded-md bg-[#EBA5AD] px-4 py-2 text-sm font-semibold text-black"
-                      >
-                        ลบ
-                      </button>
-                    </div>
+              {loading ? (
+                <tr>
+                  <td colSpan={5} className="px-4 py-6">
+                    กำลังโหลด...
                   </td>
                 </tr>
-              ))}
+              ) : error ? (
+                <tr>
+                  <td colSpan={5} className="px-4 py-6 text-red-600">
+                    {error}
+                  </td>
+                </tr>
+              ) : rows.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-4 py-6">
+                    ยังไม่มีข้อมูล
+                  </td>
+                </tr>
+              ) : (
+                rows.map((u, idx) => (
+                  <tr key={u.id}>
+                    <td className="border-b border-black/30 px-4 py-4 text-center">
+                      {idx + 1}
+                    </td>
+                    <td className="border-b border-black/30 px-4 py-4">
+                      {u.username}
+                    </td>
+                    <td className="border-b border-black/30 px-4 py-4">
+                      {u.fullName}
+                    </td>
+                    <td className="border-b border-black/30 px-4 py-4">
+                      <span
+                        className="inline-block rounded-md px-3 py-1 text-sm font-semibold text-black"
+                        style={{ background: "#BDE0A8" }}
+                      >
+                        {u.role}
+                      </span>
+                    </td>
+                    <td className="border-b border-black/30 px-4 py-4">
+                      <div className="flex items-center justify-end gap-3">
+                        <button
+                          type="button"
+                          onClick={() => onOpenEdit(u)}
+                          className="rounded-md px-4 py-2 text-sm font-semibold text-black"
+                          style={{ background: "#A6C6DE" }}
+                        >
+                          แก้ไข
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirming(u)}
+                          className="rounded-md px-4 py-2 text-sm font-semibold text-black"
+                          style={{ background: "#EBA5AD" }}
+                        >
+                          ลบ
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {showModal && (
+      {/* โมดอล เพิ่ม/แก้ไข */}
+      {open && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
           onMouseDown={(e) => {
-            // ปิดเมื่อคลิกพื้นที่มืด (ตรวจว่า target คือ backdrop เอง)
-            if (e.target === e.currentTarget) closeModal();
+            if (e.target === e.currentTarget) setOpen(false);
           }}
         >
           <div
             role="dialog"
             aria-modal="true"
-            aria-labelledby="modalTitle"
             className="w-full max-w-md rounded-xl bg-white p-6 shadow-lg"
-            onMouseDown={(e) => e.stopPropagation()} // กันบับเบิลจากกล่องโมดอล
+            onMouseDown={(e) => e.stopPropagation()}
           >
             <div className="mb-4 flex items-center justify-between">
-              <h2 id="modalTitle" className="text-lg font-bold">
-                {editing ? "แก้ไขผู้ใช้งาน" : "เพิ่มผู้ใช้งาน"}
+              <h2 className="text-lg font-bold">
+                {isEdit ? "แก้ไขผู้ใช้" : "เพิ่มผู้ใช้"}
               </h2>
               <button
                 type="button"
-                onClick={closeModal}
-                aria-label="ปิด"
-                className="rounded px-2 py-1 hover:bg-black/5"
+                onClick={() => setOpen(false)}
+                className="rounded px-2 py-1"
               >
                 ✕
               </button>
             </div>
 
-            <form ref={formRef} onSubmit={handleSave} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium" htmlFor="name">
-                  ชื่อ
-                </label>
-                <input
-                  id="name"
-                  name="name"
-                  defaultValue={editing?.name}
-                  className="w-full rounded border px-3 py-2"
-                  autoFocus
-                />
-              </div>
+            <form onSubmit={submit} className="space-y-4">
+              {!isEdit && (
+                <div>
+                  <label
+                    className="block text-sm font-medium"
+                    htmlFor="username"
+                  >
+                    Username
+                  </label>
+                  <input
+                    id="username"
+                    className="w-full rounded border px-3 py-2"
+                    autoFocus
+                    {...register("username" as const)}
+                  />
+                  {"username" in errors && (
+                    <p className="mt-1 text-xs text-red-600">
+                      {(errors as any).username?.message}
+                    </p>
+                  )}
+                </div>
+              )}
 
-              {!editing && (
+              {!isEdit && (
                 <>
                   <div>
-                    <label className="block text-sm font-medium" htmlFor="password">
+                    <label
+                      className="block text-sm font-medium"
+                      htmlFor="password"
+                    >
                       รหัสผ่าน
                     </label>
                     <input
                       id="password"
-                      type={showPw ? "text" : "password"}
-                      name="password"
+                      type="password"
                       className="w-full rounded border px-3 py-2"
+                      {...register("password" as const)}
                     />
+                    {"password" in errors && (
+                      <p className="mt-1 text-xs text-red-600">
+                        {(errors as any).password?.message}
+                      </p>
+                    )}
                   </div>
-
                   <div>
-                    <label className="block text-sm font-medium" htmlFor="confirmPassword">
+                    <label
+                      className="block text-sm font-medium"
+                      htmlFor="confirmPassword"
+                    >
                       ยืนยันรหัสผ่าน
                     </label>
                     <input
                       id="confirmPassword"
-                      type={showPw ? "text" : "password"}
-                      name="confirmPassword"
+                      type="password"
                       className="w-full rounded border px-3 py-2"
+                      {...register("confirmPassword" as const)}
                     />
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id="showpw"
-                      checked={showPw}
-                      onChange={(e) => setShowPw(e.target.checked)}
-                    />
-                    <label htmlFor="showpw" className="text-sm">
-                      ดูรหัสผ่าน
-                    </label>
+                    {"confirmPassword" in errors && (
+                      <p className="mt-1 text-xs text-red-600">
+                        {(errors as any).confirmPassword?.message}
+                      </p>
+                    )}
                   </div>
                 </>
               )}
 
               <div>
-                <label className="block text-sm font-medium" htmlFor="avatar">
-                  ภาพผู้ใช้งาน
+                <label className="block text-sm font-medium" htmlFor="fullName">
+                  ชื่อ-สกุล
                 </label>
                 <input
-                  id="avatar"
-                  type="file"
-                  name="avatar"
-                  accept="image/*"
+                  id="fullName"
                   className="w-full rounded border px-3 py-2"
+                  {...register("fullName" as const)}
                 />
+                {"fullName" in errors && (
+                  <p className="mt-1 text-xs text-red-600">
+                    {(errors as any).fullName?.message}
+                  </p>
+                )}
               </div>
 
+              <div>
+                <label className="block text-sm font-medium" htmlFor="role">
+                  บทบาท
+                </label>
+                <select
+                  id="role"
+                  className="w-full rounded border px-3 py-2"
+                  {...register("role" as const)}
+                  defaultValue={isEdit ? editing?.role : "Staff"}
+                >
+                  <option value="Staff">Staff</option>
+                  <option value="Owner">Owner</option>
+                </select>
+                {"role" in errors && (
+                  <p className="mt-1 text-xs text-red-600">
+                    {(errors as any).role?.message}
+                  </p>
+                )}
+              </div>
+
+              {isEdit && (
+                <div>
+                  <label
+                    className="block text-sm font-medium"
+                    htmlFor="newPassword"
+                  >
+                    เปลี่ยนรหัสผ่าน (ถ้าต้องการ)
+                  </label>
+                  <input
+                    id="newPassword"
+                    type="password"
+                    className="w-full rounded border px-3 py-2"
+                    {...register("newPassword" as const)}
+                  />
+                  {"newPassword" in errors && (
+                    <p className="mt-1 text-xs text-red-600">
+                      {(errors as any).newPassword?.message}
+                    </p>
+                  )}
+                </div>
+              )}
+
               <div className="flex justify-end gap-2 pt-4">
-                <button type="reset" className="rounded bg-pink-300 px-4 py-2 text-black">
-                  ล้าง
-                </button>
                 <button
                   type="button"
-                  onClick={closeModal}
-                  className="rounded bg-gray-200 px-4 py-2 text-black"
+                  onClick={() => setOpen(false)}
+                  className="rounded bg-gray-200 px-4 py-2"
                 >
                   ปิด
                 </button>
-                <button type="submit" className="rounded bg-blue-500 px-4 py-2 text-white">
-                  ตกลง
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="rounded px-4 py-2 text-white disabled:opacity-60"
+                  style={{ background: "#3b82f6" }}
+                >
+                  {isSubmitting ? "กำลังบันทึก..." : "บันทึก"}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* โมดอลยืนยันการลบ */}
+      {confirming && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setConfirming(null);
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="confirmTitle"
+            className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4">
+              <h3 id="confirmTitle" className="text-lg font-bold">
+                ยืนยันการลบผู้ใช้
+              </h3>
+              <p className="mt-2 text-sm text-gray-700">
+                ต้องการลบผู้ใช้{" "}
+                <span className="font-semibold">{confirming.username}</span>{" "}
+                ใช่หรือไม่?
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirming(null)}
+                className="rounded bg-gray-200 px-4 py-2 text-black"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                className="rounded px-4 py-2 text-white"
+                style={{ background: "#dc2626" }}
+              >
+                ลบ
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -56,3 +56,5 @@ export interface ReceiptData {
   changeAmount: number;
   paymentMethod: 'CASH' | 'QR';
 }
+export type Role = "Owner" | "Staff";
+export type UIUser = { id: string; username: string; fullName: string; role: Role; createdAt?: string };
