@@ -1,6 +1,8 @@
 import CategoryForm from './categoryForm';
+import { requireOwnerPage } from '@/lib/page-guards';
 
-const CategoryPage = () => {
+const CategoryPage = async () => {
+  await requireOwnerPage();
   return (
     <CategoryForm />
   )
