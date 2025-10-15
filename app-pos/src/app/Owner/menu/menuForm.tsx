@@ -3,19 +3,13 @@
 
 import React, { useMemo, useState, useEffect } from "react";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import {
-  Card,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { X, Plus, Minus, Plus as PlusIcon } from "lucide-react";
-import { MenuData } from "@/types/type";
-import { getMenus } from "../../../actions/menu";
+import { MenuData, CategoryData } from "@/types/type";
+import { getMenus } from "@/actions/menu";
+import { getCategories } from "@/actions/categories";
 import { toast } from "sonner";
 
-// ---------- Types ----------
 interface CartItem {
   id: string;
   name: string;
@@ -24,33 +18,18 @@ interface CartItem {
   image?: string;
 }
 
-// ---------- Components สำหรับจ่ายเงิน ----------
-const CashPayment = ({
-  total,
-  onClose,
-}: {
-  total: number;
-  onClose: () => void;
-}) => {
+/* ---------- Cash / QR Payment ---------- */
+const CashPayment = ({ total, onClose }: { total: number; onClose: () => void }) => {
   const [paid, setPaid] = useState(0);
   const change = paid - total;
   const buttons = [1000, 500, 100, 50, 20, 10, 5, 1];
-
   return (
     <div>
       <div className="bg-orange-50 rounded p-3 mb-4 text-sm space-y-2">
-        <p>
-          ยอดเงินที่ต้องชำระ : <span className="text-red-600">{total}</span>
-        </p>
-        <p>
-          ลูกค้าจ่าย : <span className="text-red-600">{paid}</span>
-        </p>
-        <p>
-          เงินทอน :{" "}
-          <span className="font-bold">{change >= 0 ? change : 0}</span>
-        </p>
+        <p>ยอดเงินที่ต้องชำระ : <span className="text-red-600">{total}</span></p>
+        <p>ลูกค้าจ่าย : <span className="text-red-600">{paid}</span></p>
+        <p>เงินทอน : <span className="font-bold">{change >= 0 ? change : 0}</span></p>
       </div>
-
       <div className="grid grid-cols-4 gap-2 mb-4">
         {buttons.map((val) => (
           <button
@@ -62,83 +41,59 @@ const CashPayment = ({
           </button>
         ))}
       </div>
-
       <div className="flex justify-between">
-        <button
-          className="bg-red-400 text-white px-4 py-2 rounded-md"
-          onClick={() => setPaid(0)}
-        >
-          ล้าง
-        </button>
+        <button className="bg-red-400 text-white px-4 py-2 rounded-md" onClick={() => setPaid(0)}>ล้าง</button>
         <div className="flex gap-2">
-          <button className="bg-gray-300 px-4 py-2 rounded-md" onClick={onClose}>
-            ปิด
-          </button>
-          <button className="bg-blue-500 text-white px-4 py-2 rounded-md">
-            ตกลง
-          </button>
+          <button className="bg-gray-300 px-4 py-2 rounded-md" onClick={onClose}>ปิด</button>
+          <button className="bg-blue-500 text-white px-4 py-2 rounded-md">ตกลง</button>
         </div>
       </div>
     </div>
   );
 };
 
-const QrPayment = ({
-  total,
-  onClose,
-}: {
-  total: number;
-  onClose: () => void;
-}) => {
+const QrPayment = ({ total, onClose }: { total: number; onClose: () => void }) => {
   return (
     <div className="flex flex-col items-center">
       <p className="mb-2">ยอดชำระ : {total} บาท</p>
-      <div className="w-40 h-40 bg-gray-200 flex items-center justify-center mb-4">
-        QR Code
-      </div>
-      <button className="bg-blue-500 text-white px-4 py-2 rounded-md" onClick={onClose}>
-        เสร็จสิ้น
-      </button>
+      <div className="w-40 h-40 bg-gray-200 flex items-center justify-center mb-4">QR Code</div>
+      <button className="bg-blue-500 text-white px-4 py-2 rounded-md" onClick={onClose}>เสร็จสิ้น</button>
     </div>
   );
 };
 
-// ---------- Main Component ----------
+/* ---------- Main ---------- */
 const MenuForm = () => {
-  //  ย้าย state ของ popup เข้ามาไว้ใน component
   const [isPayOpen, setIsPayOpen] = useState(false);
   const [payMethod, setPayMethod] = useState<"cash" | "qr">("cash");
-  const [isManagementOpen, setIsManagementOpen] = useState(false);
 
-  //  ระบุ Type ให้กับ useState
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [menuItems, setMenuItems] = useState<MenuData[]>([]);
+  const [categories, setCategories] = useState<CategoryData[]>([]);
+  const [activeCat, setActiveCat] = useState<string>("all");
   const [isLoading, setIsLoading] = useState(true);
 
-  // selected item modal
   const [selectedItem, setSelectedItem] = useState<MenuData | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [quantity, setQuantity] = useState(1);
 
-  // Load menu items from database
   useEffect(() => {
-    const fetchMenus = async () => {
+    const fetchAll = async () => {
       try {
         setIsLoading(true);
-        const result = await getMenus();
-        if (result.success && result.data) {
-          setMenuItems(result.data);
-        } else {
-          toast.error(result.error || 'ไม่สามารถโหลดข้อมูลเมนูได้');
-        }
+        const [m, c] = await Promise.all([getMenus(), getCategories()]);
+        if (m.success && m.data) setMenuItems(m.data);
+        else toast.error(m.error || "ไม่สามารถโหลดข้อมูลเมนูได้");
+
+        if (c.success && c.data) setCategories(c.data);
+        else toast.error(c.error || "ไม่สามารถโหลดหมวดหมู่ได้");
       } catch (error: any) {
-        toast.error(error.message || 'เกิดข้อผิดพลาดในการโหลดข้อมูล');
+        toast.error(error.message || "เกิดข้อผิดพลาดในการโหลดข้อมูล");
       } finally {
         setIsLoading(false);
       }
     };
-
-    fetchMenus();
+    fetchAll();
   }, []);
 
   const handleCardClick = (item: MenuData) => {
@@ -171,9 +126,8 @@ const MenuForm = () => {
     setSelectedItem(null);
   };
 
-  const handleRemoveItem = (id: string) => {
+  const handleRemoveItem = (id: string) =>
     setCartItems((prev) => prev.filter((i) => i.id !== id));
-  };
 
   const increaseQuantity = () => setQuantity((p) => p + 1);
   const decreaseQuantity = () => setQuantity((p) => (p > 1 ? p - 1 : p));
@@ -183,82 +137,91 @@ const MenuForm = () => {
       prev.map((item) => {
         if (item.id !== id) return item;
         if (action === "increase") return { ...item, qty: item.qty + 1 };
-        if (action === "decrease" && item.qty > 1)
-          return { ...item, qty: item.qty - 1 };
+        if (action === "decrease" && item.qty > 1) return { ...item, qty: item.qty - 1 };
         return item;
       })
     );
-  };
-
-  const refreshMenus = async () => {
-    try {
-      const result = await getMenus();
-      if (result.success && result.data) {
-        setMenuItems(result.data);
-      }
-    } catch (error: any) {
-      toast.error(error.message || 'ไม่สามารถโหลดข้อมูลเมนูได้');
-    }
   };
 
   const totalItems = useMemo(
     () => cartItems.reduce((sum, item) => sum + item.qty, 0),
     [cartItems]
   );
-
-  // เพิ่มตัวนี้เพื่อแก้ error totalPrice
   const totalPrice = useMemo(
     () => cartItems.reduce((sum, item) => sum + item.price * item.qty, 0),
     [cartItems]
   );
 
+  const visibleMenus = useMemo(() => {
+    if (activeCat === "all") return menuItems;
+    return menuItems.filter((m) => (m.categories || []).includes(activeCat));
+  }, [menuItems, activeCat]);
+
   return (
     <>
       <div className="item-center justify-center bg-[#FFFDE4] ">
         <div className="flex">
-          {/* ฝั่งซ้าย = เนื้อหา */}
+          {/* Left side */}
           <div className="flex-1 p-6">
             <header className="w-full">
               <div className="container mx-auto px-6 h-[70px] flex items-center justify-between">
-                
-                
-                <ToggleGroup type="multiple" variant="outline" className="flex gap-2">
-                  {["All", "Cake", "Cookie", "Pie", "Bread"].map((item) => (
+                {/* --- Category Chips (UI ใหม่) --- */}
+                <ToggleGroup
+                  type="single"
+                  value={activeCat}
+                  onValueChange={(v) => setActiveCat(v || "all")}
+                  className="flex gap-3 overflow-x-auto py-1 pr-1"
+                >
+                  <ToggleGroupItem
+                    value="all"
+                    aria-label="All"
+                    className={[
+                      "group inline-flex items-center gap-2 rounded-full px-4 h-9 text-sm font-semibold transition",
+                      "border border-[#8B4513]/70 shadow-sm",
+                      "bg-white text-[#3c2a1e]",
+                      "data-[state=on]:bg-[#8B4513] data-[state=on]:text-white",
+                      "hover:bg-[#8B4513]/10 data-[state=on]:hover:bg-[#8B4513]",
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8B4513]/40",
+                    ].join(" ")}
+                  >
+                    <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-400/90 group-data-[state=on]:bg-white" />
+                    All
+                  </ToggleGroupItem>
+
+                  {categories.map((cat) => (
                     <ToggleGroupItem
-                      key={item.toLowerCase()}
-                      value={item.toLowerCase()}
-                      aria-label={`Toggle ${item}`}
-                      className="group w-[111px] h-[35px] rounded-full border-2 border-[#8B4513] data-[state=on]:bg-white hover:bg-white hover:text-[#8B4513]"
+                      key={cat.categoryID}
+                      value={cat.categoryID}
+                      aria-label={cat.categoryName}
+                      className={[
+                        "group inline-flex items-center gap-2 rounded-full px-4 h-9 text-sm font-semibold transition",
+                        "border border-[#8B4513]/70 shadow-sm",
+                        "bg-white text-[#3c2a1e]",
+                        "data-[state=on]:bg-[#8B4513] data-[state=on]:text-white",
+                        "hover:bg-[#8B4513]/10 data-[state=on]:hover:bg-[#8B4513]",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8B4513]/40",
+                      ].join(" ")}
                     >
-                      <div className="font-bold relative flex items-center pl-2">
-                        <div className="w-5 h-5 rounded-full bg-[#D9ECD0] group-data-[state=on]:bg-green-500"></div>
-                        <span className="ml-2">{item}</span>
-                      </div>
+                      <span className="inline-block w-2.5 h-2.5 rounded-full bg-[#D9ECD0] group-data-[state=on]:bg-white" />
+                      <span className="truncate max-w-[9rem]">{cat.categoryName}</span>
                     </ToggleGroupItem>
                   ))}
                 </ToggleGroup>
               </div>
             </header>
 
-            {/* content หลัก (card menu) */}
+            {/* Menu cards */}
             <aside className="grid grid-cols-3 gap-10 p-6 mx-5">
               {isLoading ? (
                 <div className="col-span-3 flex justify-center items-center h-64">
                   <div className="text-lg">กำลังโหลดข้อมูล...</div>
                 </div>
-              ) : menuItems.length === 0 ? (
+              ) : visibleMenus.length === 0 ? (
                 <div className="col-span-3 flex flex-col justify-center items-center h-64">
                   <div className="text-lg text-gray-500 mb-4">ยังไม่มีเมนู</div>
-                  <button
-                    onClick={() => setIsManagementOpen(true)}
-                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-                  >
-                    <PlusIcon size={16} />
-                    เพิ่มเมนูแรก
-                  </button>
                 </div>
               ) : (
-                menuItems.map((item) => (
+                visibleMenus.map((item) => (
                   <Card
                     key={item.menuID}
                     className="w-[219px] h-[300px] border-none bg-white cursor-pointer hover:shadow-lg transition-shadow"
@@ -290,9 +253,8 @@ const MenuForm = () => {
           </div>
         </div>
 
-        {/* ฝั่งขวา = Cart */}
+        {/* Right cart panel */}
         <div className="fixed top-0 right-0 h-screen w-[350px] bg-white rounded-l-lg shadow-lg p-4 flex flex-col">
-          {/* ส่วน table */}
           <div className="flex-1 overflow-auto">
             <div className="border-none rounded-lg">
               <div className="bg-[#F1E9E5] border-none  rounded-md shadow-md mb-4">
@@ -343,7 +305,6 @@ const MenuForm = () => {
             </div>
           </div>
 
-          {/* footer ชิดล่าง */}
           <div className="mt-auto flex justify-between items-center pt-4 border-t">
             <span className="font-bold">รายการ: {totalItems}</span>
             <button
@@ -355,7 +316,7 @@ const MenuForm = () => {
           </div>
         </div>
 
-        {/* Modal เลือกจำนวนสินค้า (ของเดิม) */}
+        {/* Quantity modal */}
         {isModalOpen && selectedItem && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 ">
             <div className="bg-white p-[20px] rounded-lg w-[711px] h-[468px] mx-4 overflow-hidden ">
@@ -435,7 +396,7 @@ const MenuForm = () => {
           </div>
         )}
 
-        {/*  Popup  MenuForm */}
+        {/* Pay modal */}
         {isPayOpen && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg w-[400px] p-5">
@@ -446,17 +407,13 @@ const MenuForm = () => {
 
               <div className="flex gap-2 mb-4">
                 <button
-                  className={`flex-1 py-2 rounded-md ${
-                    payMethod === "cash" ? "bg-blue-500 text-white" : "bg-gray-100"
-                  }`}
+                  className={`flex-1 py-2 rounded-md ${payMethod === "cash" ? "bg-blue-500 text-white" : "bg-gray-100"}`}
                   onClick={() => setPayMethod("cash")}
                 >
                   เงินสด
                 </button>
                 <button
-                  className={`flex-1 py-2 rounded-md ${
-                    payMethod === "qr" ? "bg-blue-500 text-white" : "bg-gray-100"
-                  }`}
+                  className={`flex-1 py-2 rounded-md ${payMethod === "qr" ? "bg-blue-500 text-white" : "bg-gray-100"}`}
                   onClick={() => setPayMethod("qr")}
                 >
                   QR
