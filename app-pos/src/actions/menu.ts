@@ -1,131 +1,199 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use server";
 
-import prisma from "@/lib/prisma";
+import { PrismaClient } from "@prisma/client";
 import { revalidatePath } from "next/cache";
-import { uploadImage, deleteImage } from "@/utils/images";
-import {
-  formDataToCreate,
-  formDataToUpdate,
-  createMenuSchema,
-  updateMenuSchema,
-  validateImageFile,
-  formatZodError,
-} from "@/validation/menu";
-import { MenuData } from "@/types/type";
+import type { ApiResponse, MenuData } from "@/types/type";
 
-/* ---------- Helpers ---------- */
-function mapMenu(m: any): MenuData {
+const prisma = new PrismaClient();
+
+// ปรับ path ให้ตรงกับหน้า UI ของคุณ
+const REVALIDATE_MENU_PATH = "/Owner/menu";
+
+/* -------------------- Utils -------------------- */
+
+// แปลง Prisma result -> MenuData (อ่าน relation จาก m.categories)
+function serializeMenu(m: any): MenuData {
+  const cats = Array.isArray(m?.categories)
+    ? m.categories.map((mc: any) => mc.categoryID)
+    : [];
+
   return {
     menuID: m.menuID,
     menuName: m.menuName,
-    price: Number(m.price), // ให้ UI เอาไป toFixed ได้
+    price: Number(m.price),
     menuDetail: m.menuDetail ?? undefined,
     imageUrl: m.imageUrl ?? undefined,
-    createdAt: m.createdAt?.toISOString?.() ?? undefined,
-    updatedAt: m.updatedAt?.toISOString?.() ?? undefined,
+    categories: cats,
+    createdAt: m.createdAt ? new Date(m.createdAt).toISOString() : undefined,
+    updatedAt: m.updatedAt ? new Date(m.updatedAt).toISOString() : undefined,
   };
 }
 
-/* ---------- GET ---------- */
-export async function getMenus() {
-  try {
-    const menus = await prisma.menu.findMany({
-      orderBy: { createdAt: "desc" },
-    });
-    return { success: true, data: menus.map(mapMenu) as MenuData[] };
-  } catch {
-    return { success: false, error: "โหลดข้อมูลเมนูไม่สำเร็จ" };
-  }
-}
-
-/* ---------- CREATE ---------- */
-export async function createMenu(fd: FormData) {
-  try {
-    // 1) FormData → object
-    const parsed = formDataToCreate(fd);
-    // 2) zod validate
-    const validated = createMenuSchema.parse(parsed);
-
-    // 3)  (required = true)
-    const imgCheck = validateImageFile(parsed.imageFile, true);
-    if (!imgCheck.isValid) throw new Error(imgCheck.error);
-
-    // 4) upload (ถ้ามาถึงนี่แปลว่ามีไฟล์แล้ว)
-    const imageUrl = await uploadImage(parsed.imageFile!);
-
-    // 5) save DB
-    const created = await prisma.menu.create({
-      data: {
-        menuName: validated.menuName,
-        price: validated.price, // Prisma Decimal  number or string
-        menuDetail: validated.menuDetail || null,
-        imageUrl,
-      },
-    });
-
-    revalidatePath("/Owner/editmenu");
-    return { success: true, data: mapMenu(created) };
-  } catch (e) {
-    return { success: false, error: formatZodError(e) };
-  }
-}
-
-/* ---------- UPDATE ---------- */
-export async function updateMenu(fd: FormData) {
-  try {
-    // 1) FormData → object
-    const parsed = formDataToUpdate(fd);
-    // 2) zod validate
-    const validated = updateMenuSchema.parse(parsed);
-
-    // 3) find existing menu
-    const old = await prisma.menu.findUnique({
-      where: { menuID: validated.menuID },
-    });
-    if (!old) throw new Error("ไม่พบเมนูที่จะอัปเดต");
-
-    // 4) image (required = false)
-    let nextImageUrl = old.imageUrl ?? null;
-    const imgCheck = validateImageFile(parsed.imageFile, false);
-    if (!imgCheck.isValid) throw new Error(imgCheck.error);
-
-    // if imageFile is provided → upload new & delete old
-    if (parsed.imageFile) {
-      if (nextImageUrl) await deleteImage(nextImageUrl);
-      nextImageUrl = await uploadImage(parsed.imageFile);
+// อ่าน categories จาก FormData: รองรับทั้ง JSON ("categories") และหลายคีย์ ("categories[]")
+function readCategoriesFromFD(fd: FormData): string[] {
+  const jsonStr = fd.get("categories") as string | null;
+  if (jsonStr) {
+    try {
+      const arr = JSON.parse(jsonStr);
+      if (Array.isArray(arr)) return arr.map(String).filter(Boolean);
+    } catch (e) {
+      console.error("Parse categories JSON error:", e);
     }
+  }
+  return fd.getAll("categories[]").map(String).filter(Boolean);
+}
 
-    // 5) update DB
-    const updated = await prisma.menu.update({
-      where: { menuID: validated.menuID },
-      data: {
-        menuName: validated.menuName,
-        price: validated.price,
-        menuDetail: validated.menuDetail || null,
-        imageUrl: nextImageUrl,
+// (ทางเลือก) อัปโหลดรูปและคืน URL — ใส่ระบบจริงของคุณที่นี่
+async function uploadImageAndGetUrl(file: File | null, current?: string | null) {
+  // TODO: อัปโหลดจริง (S3/Cloud/etc.) แล้ว return URL
+  return current ?? undefined;
+}
+
+/* -------------------- Actions -------------------- */
+
+// GET: เมนูทั้งหมด
+export async function getMenus(): Promise<ApiResponse<MenuData[]>> {
+  try {
+    const rows = await prisma.menu.findMany({
+      orderBy: { createdAt: "asc" },
+      include: {
+        // ✅ ตาม schema: relation ชื่อ "categories"
+        categories: { select: { categoryID: true } },
       },
     });
-
-    revalidatePath("/Owner/editmenu");
-    return { success: true, data: mapMenu(updated) };
-  } catch (e) {
-    return { success: false, error: formatZodError(e) };
+    const data = rows.map(serializeMenu);
+    return { success: true, data };
+  } catch (error) {
+    console.error("getMenus error:", error);
+    return { success: false, error: "ไม่สามารถดึงเมนูได้" };
   }
 }
 
-/* ---------- DELETE ---------- */
-export async function deleteMenu(menuID: string) {
+// GET: เมนูตาม ID
+export async function getMenuById(menuID: string): Promise<ApiResponse<MenuData>> {
   try {
-    const old = await prisma.menu.findUnique({ where: { menuID } });
-    if (!old) throw new Error("ไม่พบเมนูที่จะลบ");
+    const m = await prisma.menu.findUnique({
+      where: { menuID },
+      include: { categories: { select: { categoryID: true } } },
+    });
+    if (!m) return { success: false, error: "ไม่พบเมนูที่ระบุ" };
+    return { success: true, data: serializeMenu(m) };
+  } catch (e) {
+    console.error("getMenuById error:", e);
+    return { success: false, error: "ไม่สามารถดึงข้อมูลเมนูได้" };
+  }
+}
 
-    if (old.imageUrl) await deleteImage(old.imageUrl);
+// POST: สร้างเมนู
+export async function createMenu(formData: FormData): Promise<ApiResponse<MenuData>> {
+  try {
+    const menuName = String(formData.get("menuName") || "").trim();
+    const price = Number(formData.get("price"));
+    const menuDetail = (formData.get("menuDetail") as string) || undefined;
+    const imageFile = (formData.get("imageFile") as File) || null;
+
+    if (!menuName) return { success: false, error: "กรุณากรอกชื่อเมนู" };
+    if (!Number.isFinite(price) || price <= 0) return { success: false, error: "ราคาต้องมากกว่า 0" };
+
+    const categories = readCategoriesFromFD(formData);
+    if (categories.length === 0) return { success: false, error: "กรุณาเลือกหมวดหมู่" };
+
+    const imageUrl = await uploadImageAndGetUrl(imageFile, null);
+
+    const created = await prisma.menu.create({
+      data: { menuName, price, menuDetail, imageUrl: imageUrl ?? null },
+    });
+
+    // เชื่อมความสัมพันธ์ใน join table (model: Menu_Category)
+    await prisma.$transaction(
+      categories.map((categoryID) =>
+        prisma.menu_Category.create({ data: { menuID: created.menuID, categoryID } })
+      )
+    );
+
+    const withCats = await prisma.menu.findUnique({
+      where: { menuID: created.menuID },
+      include: { categories: { select: { categoryID: true } } },
+    });
+
+    revalidatePath(REVALIDATE_MENU_PATH);
+
+    return { success: true, data: serializeMenu(withCats || created) };
+  } catch (error) {
+    console.error("createMenu error:", error);
+    return { success: false, error: "ไม่สามารถเพิ่มเมนูได้" };
+  }
+}
+
+// PATCH: อัปเดตเมนู
+export async function updateMenu(formData: FormData): Promise<ApiResponse<MenuData>> {
+  try {
+    const menuID = String(formData.get("menuID") || "");
+    const menuName = (formData.get("menuName") as string) || "";
+    const price = Number(formData.get("price"));
+    const menuDetail = (formData.get("menuDetail") as string) || undefined;
+    const imageFile = (formData.get("imageFile") as File) || null;
+
+    if (!menuID) return { success: false, error: "ไม่พบเมนูที่ต้องการแก้ไข" };
+    if (!menuName.trim()) return { success: false, error: "กรุณากรอกชื่อเมนู" };
+    if (!Number.isFinite(price) || price <= 0) return { success: false, error: "ราคาต้องมากกว่า 0" };
+
+    const categories = readCategoriesFromFD(formData);
+    if (categories.length === 0) return { success: false, error: "กรุณาเลือกหมวดหมู่" };
+
+    const current = await prisma.menu.findUnique({
+      where: { menuID },
+      select: { imageUrl: true },
+    });
+    if (!current) return { success: false, error: "ไม่พบเมนูที่ต้องการแก้ไข" };
+
+    const imageUrl = await uploadImageAndGetUrl(imageFile, current.imageUrl);
+
+    const updated = await prisma.menu.update({
+      where: { menuID },
+      data: {
+        menuName: menuName.trim(),
+        price,
+        menuDetail,
+        imageUrl: imageUrl ?? current.imageUrl ?? null,
+      },
+    });
+
+    // sync relation: ลบของเดิม แล้วสร้างใหม่ตาม categories ล่าสุด
+    await prisma.$transaction([
+      prisma.menu_Category.deleteMany({ where: { menuID } }),
+      ...categories.map((categoryID) =>
+        prisma.menu_Category.create({ data: { menuID, categoryID } })
+      ),
+    ]);
+
+    const withCats = await prisma.menu.findUnique({
+      where: { menuID: updated.menuID },
+      include: { categories: { select: { categoryID: true } } },
+    });
+
+    revalidatePath(REVALIDATE_MENU_PATH);
+
+    return { success: true, data: serializeMenu(withCats || updated) };
+  } catch (error) {
+    console.error("updateMenu error:", error);
+    return { success: false, error: "ไม่สามารถอัปเดตเมนูได้" };
+  }
+}
+
+// DELETE: ลบเมนู
+export async function deleteMenu(menuID: string): Promise<ApiResponse<{ message: string }>> {
+  try {
+    if (!menuID) return { success: false, error: "ไม่พบเมนูที่ต้องการลบ" };
+
+    await prisma.menu_Category.deleteMany({ where: { menuID } });
     await prisma.menu.delete({ where: { menuID } });
 
-    revalidatePath("/Owner/editmenu");
-    return { success: true };
-  } catch (e) {
-    return { success: false, error: formatZodError(e) };
+    revalidatePath(REVALIDATE_MENU_PATH);
+
+    return { success: true, data: { message: "ลบเมนูเรียบร้อยแล้ว" } };
+  } catch (error) {
+    console.error("deleteMenu error:", error);
+    return { success: false, error: "ไม่สามารถลบเมนูได้" };
   }
 }
