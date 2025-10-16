@@ -1,3 +1,4 @@
+// src/components/sidebar/app-sidebar.tsx
 "use client";
 import {
   Home,
@@ -10,6 +11,7 @@ import {
   IdCardLanyard,
   TicketPercent,
   Dessert,
+  ReceiptText,          // ⬅️ ใช้เป็นไอคอน Orders
 } from "lucide-react";
 
 import {
@@ -31,6 +33,7 @@ import {
 } from "../ui/dropdown-menu";
 import { useEffect, useState } from "react";
 import useLogout from "@/hooks/uselogout";
+
 // Menu items.
 const items = [
   {
@@ -56,6 +59,12 @@ const items = [
     path: "/Owner/editmenu",
     showFor: ["Owner"],
     icon: SquarePen,
+  },
+  {
+    title: "Orders",              // ⬅️ เมนูใหม่
+    path: "/Owner/orders",        // ⬅️ ชี้ไปหน้า orders
+    showFor: ["Owner"],           // ⬅️ ให้แสดงเฉพาะ Owner (จะให้ Staff เห็นก็เติม "Staff")
+    icon: ReceiptText,            // ⬅️ ไอคอน
   },
   {
     title: "Sales Reports",
@@ -89,7 +98,6 @@ export function AppSidebar() {
         const response = await fetch("/api/user");
         if (response.ok) {
           const data = await response.json();
-          console.log("User role from API:", data.role);
           setUserRole(data.role);
         } else {
           console.error("Failed to fetch user role:", response.statusText);
@@ -108,19 +116,14 @@ export function AppSidebar() {
     ? items.filter((item) => item.showFor.includes(userRole))
     : [];
 
-  // const handleLogout = async () => {
-  //   await fetch("/api/logout", { method: "POST" });
-  //   window.location.replace("/login");
-  // };
-
   return (
     <Sidebar className="!bg-[#D3BBA1] drop-shadow-[0_4px_3px_rgba(0,0,0,0.5)] border-r border-[#D3BBA1]">
       <SidebarHeader className="bg-[#D3BBA1] p-4 flex justify-center items-center">
         <Dessert className="w-14 h-20 text-[#8B4513]" />
       </SidebarHeader>
+
       <SidebarContent className="bg-[#D3BBA1] text-[#835916]">
         <SidebarGroup>
-          {/* <SidebarGroupLabel>Application</SidebarGroupLabel> */}
           <SidebarGroupContent>
             <SidebarMenu className="space-y-8">
               {isLoading ? (
@@ -133,7 +136,7 @@ export function AppSidebar() {
                       className="!text-[#8B4513] hover:!bg-white hover:!text-[#8B4513] transition-all duration-200 !py-3 !px-4 rounded-lg mx-auto data-[state=open]:!bg-white data-[active=true]:!bg-white"
                     >
                       <a href={item.path} className="flex items-center gap-3">
-                        <item.icon className="w-8 h-8 min-w-[1.5rem] min-h-[2rem]" />{" "}
+                        <item.icon className="w-8 h-8 min-w-[1.5rem] min-h-[2rem]" />
                         <span className="text-lg">{item.title}</span>
                       </a>
                     </SidebarMenuButton>
@@ -146,6 +149,7 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+
       <SidebarFooter className="bg-[#D3BBA1]">
         <SidebarMenu>
           <SidebarMenuItem className="py-3">
@@ -159,14 +163,15 @@ export function AppSidebar() {
                   <ChevronUp className="ml-auto w-5 h-5" />
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
-              <DropdownMenuContent
-                side="top"
-                className="w-[--radix-popper-anchor-width]"
-              >
+
+              <DropdownMenuContent side="top" className="w-[--radix-popper-anchor-width]">
                 <DropdownMenuItem className="!text-[#8B4513] hover:!bg-white hover:!text-[#8B4513] transition-all duration-200  !px-6 text-lg">
                   <span>Account</span>
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleLogout} className="!text-[#8B4513] hover:!bg-white hover:!text-[#8B4513] transition-all duration-200  !px-6 text-lg">
+                <DropdownMenuItem
+                  onClick={handleLogout}
+                  className="!text-[#8B4513] hover:!bg-white hover:!text-[#8B4513] transition-all duration-200  !px-6 text-lg"
+                >
                   <span>Logout</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
