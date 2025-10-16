@@ -1,9 +1,11 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use server";
 
 import { PrismaClient } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import type { ApiResponse, MenuData } from "@/types/type";
+import { createSupabaseServerClient } from "@/lib/supabaseServer";
 
 const prisma = new PrismaClient();
 
@@ -46,8 +48,32 @@ function readCategoriesFromFD(fd: FormData): string[] {
 
 // (ทางเลือก) อัปโหลดรูปและคืน URL — ใส่ระบบจริงของคุณที่นี่
 async function uploadImageAndGetUrl(file: File | null, current?: string | null) {
-  // TODO: อัปโหลดจริง (S3/Cloud/etc.) แล้ว return URL
-  return current ?? undefined;
+  if (!file) {
+    // ถ้าไม่มีการอัปโหลดใหม่ ก็ใช้ URL เดิม
+    return current ?? undefined;
+  }
+
+  const fileName = `${crypto.randomUUID()}-${file.name}`;
+
+  // 📤 อัปโหลดไปยัง Supabase Storage
+  const { data, error } = await createSupabaseServerClient().storage
+    .from("menu") // bucket
+    .upload(`menus/${fileName}`, file, {
+      cacheControl: "3600",
+      upsert: false,
+    });
+
+  if (error) {
+    console.error("Upload failed:", error.message);
+    throw new Error("อัปโหลดรูปภาพไม่สำเร็จ");
+  }
+
+  // ✅ ได้ public URL กลับมา
+  const { data: urlData } = await createSupabaseServerClient().storage
+    .from("menu")
+    .getPublicUrl(`menus/${fileName}`);
+
+  return urlData.publicUrl;
 }
 
 /* -------------------- Actions -------------------- */
