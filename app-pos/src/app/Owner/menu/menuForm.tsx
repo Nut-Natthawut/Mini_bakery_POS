@@ -18,54 +18,21 @@ interface CartItem {
   image?: string;
 }
 
-/* ---------- Cash / QR Payment ---------- */
-const CashPayment = ({ total, onClose }: { total: number; onClose: () => void }) => {
-  const [paid, setPaid] = useState(0);
-  const change = paid - total;
-  const buttons = [1000, 500, 100, 50, 20, 10, 5, 1];
-  return (
-    <div>
-      <div className="bg-orange-50 rounded p-3 mb-4 text-sm space-y-2">
-        <p>ยอดเงินที่ต้องชำระ : <span className="text-red-600">{total}</span></p>
-        <p>ลูกค้าจ่าย : <span className="text-red-600">{paid}</span></p>
-        <p>เงินทอน : <span className="font-bold">{change >= 0 ? change : 0}</span></p>
-      </div>
-      <div className="grid grid-cols-4 gap-2 mb-4">
-        {buttons.map((val) => (
-          <button
-            key={val}
-            className="py-2 rounded-md bg-orange-100 hover:bg-orange-200"
-            onClick={() => setPaid((p) => p + val)}
-          >
-            {val}
-          </button>
-        ))}
-      </div>
-      <div className="flex justify-between">
-        <button className="bg-red-400 text-white px-4 py-2 rounded-md" onClick={() => setPaid(0)}>ล้าง</button>
-        <div className="flex gap-2">
-          <button className="bg-gray-300 px-4 py-2 rounded-md" onClick={onClose}>ปิด</button>
-          <button className="bg-blue-500 text-white px-4 py-2 rounded-md">ตกลง</button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const QrPayment = ({ total, onClose }: { total: number; onClose: () => void }) => {
-  return (
-    <div className="flex flex-col items-center">
-      <p className="mb-2">ยอดชำระ : {total} บาท</p>
-      <div className="w-40 h-40 bg-gray-200 flex items-center justify-center mb-4">QR Code</div>
-      <button className="bg-blue-500 text-white px-4 py-2 rounded-md" onClick={onClose}>เสร็จสิ้น</button>
-    </div>
-  );
-};
+interface ReceiptData {
+  items: CartItem[];
+  total: number;
+  paid: number;
+  change: number;
+  paymentMethod: "cash" | "qr";
+  date: Date;
+}
 
 /* ---------- Main ---------- */
 const MenuForm = () => {
   const [isPayOpen, setIsPayOpen] = useState(false);
   const [payMethod, setPayMethod] = useState<"cash" | "qr">("cash");
+  const [isReceiptOpen, setIsReceiptOpen] = useState(false);
+  const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
 
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [menuItems, setMenuItems] = useState<MenuData[]>([]);
@@ -156,6 +123,92 @@ const MenuForm = () => {
     if (activeCat === "all") return menuItems;
     return menuItems.filter((m) => (m.categories || []).includes(activeCat));
   }, [menuItems, activeCat]);
+
+  /* ---------- Cash / QR Payment ---------- */
+  const CashPayment = ({ total, onClose }: { total: number; onClose: () => void }) => {
+    const [paid, setPaid] = useState(0);
+    const change = paid - total;
+    const buttons = [1000, 500, 100, 50, 20, 10, 5, 1];
+
+    const handleConfirm = () => {
+      if (change >= 0) {
+        setReceiptData({
+          items: [...cartItems],
+          total: totalPrice,
+          paid: paid,
+          change: change,
+          paymentMethod: "cash",
+          date: new Date(),
+        });
+        setIsPayOpen(false);
+        setIsReceiptOpen(true);
+      } else {
+        toast.error("จำนวนเงินไม่เพียงพอ");
+      }
+    };
+
+    return (
+      <div>
+        <div className="bg-orange-50 rounded p-3 mb-4 text-sm space-y-2">
+          <p>ยอดเงินที่ต้องชำระ : <span className="text-red-600">{total}</span></p>
+          <p>ลูกค้าจ่าย : <span className="text-red-600">{paid}</span></p>
+          <p>เงินทอน : <span className="font-bold">{change >= 0 ? change : 0}</span></p>
+        </div>
+        <div className="grid grid-cols-4 gap-2 mb-4">
+          {buttons.map((val) => (
+            <button
+              key={val}
+              className="py-2 rounded-md bg-orange-100 hover:bg-orange-200"
+              onClick={() => setPaid((p) => p + val)}
+            >
+              {val}
+            </button>
+          ))}
+        </div>
+        <div className="flex justify-between">
+          <button className="bg-red-400 text-white px-4 py-2 rounded-md" onClick={() => setPaid(0)}>ล้าง</button>
+          <div className="flex gap-2">
+            <button className="bg-gray-300 px-4 py-2 rounded-md" onClick={onClose}>ปิด</button>
+            <button 
+              className="bg-blue-500 text-white px-4 py-2 rounded-md disabled:bg-gray-400 disabled:cursor-not-allowed" 
+              onClick={handleConfirm}
+              disabled={change < 0}
+            >
+              ตกลง
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const QrPayment = ({ total, onClose }: { total: number; onClose: () => void }) => {
+    const handleConfirm = () => {
+      setReceiptData({
+        items: [...cartItems],
+        total: totalPrice,
+        paid: total,
+        change: 0,
+        paymentMethod: "qr",
+        date: new Date(),
+      });
+      setIsPayOpen(false);
+      setIsReceiptOpen(true);
+    };
+
+    return (
+      <div className="flex flex-col items-center">
+        <p className="mb-2">ยอดชำระ : {total} บาท</p>
+        <div className="w-40 h-40 bg-gray-200 flex items-center justify-center mb-4">QR Code</div>
+        <button 
+          className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600" 
+          onClick={handleConfirm}
+        >
+          เสร็จสิ้น
+        </button>
+      </div>
+    );
+  };
 
   return (
     <>
@@ -425,6 +478,119 @@ const MenuForm = () => {
               ) : (
                 <QrPayment total={totalPrice} onClose={() => setIsPayOpen(false)} />
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Receipt modal */}
+        {isReceiptOpen && receiptData && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg w-[400px] max-h-[90vh] overflow-auto shadow-2xl">
+              {/* Header */}
+              <div className="bg-[#765827] p-6 text-white text-center">
+                <h2 className="text-2xl font-bold mb-1">ใบเสร็จรับเงิน</h2>
+                <p className="text-sm opacity-90">Receipt</p>
+              </div>
+
+              {/* Receipt Content */}
+              <div className="p-6">
+                {/* Date & Time */}
+                <div className="text-center mb-6 pb-4 border-b-2 border-dashed border-gray-300">
+                  <p className="text-sm text-gray-600">
+                    {receiptData.date.toLocaleDateString('th-TH', { 
+                      year: 'numeric', 
+                      month: 'long', 
+                      day: 'numeric' 
+                    })}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    {receiptData.date.toLocaleTimeString('th-TH', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit'
+                    })}
+                  </p>
+                </div>
+
+                {/* Items List */}
+                <div className="mb-6">
+                  <div className="flex justify-between text-sm font-semibold mb-3 pb-2 border-b">
+                    <span>รายการ</span>
+                    <span>ราคา</span>
+                  </div>
+                  {receiptData.items.map((item, index) => (
+                    <div key={index} className="mb-3">
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <p className="font-medium">{item.name}</p>
+                          <p className="text-sm text-gray-500">
+                            {item.price} x {item.qty}
+                          </p>
+                        </div>
+                        <p className="font-semibold">{(item.price * item.qty).toFixed(2)} ฿</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Summary */}
+                <div className="border-t-2 border-dashed border-gray-300 pt-4 space-y-3">
+                  <div className="flex justify-between text-lg">
+                    <span>ยอดรวม:</span>
+                    <span className="font-bold">{receiptData.total.toFixed(2)} ฿</span>
+                  </div>
+                  
+                  <div className="flex justify-between">
+                    <span>รับเงิน:</span>
+                    <span className="font-semibold">{receiptData.paid.toFixed(2)} ฿</span>
+                  </div>
+                  
+                  <div className="flex justify-between text-lg bg-green-50 p-3 rounded-lg">
+                    <span className="font-semibold">เงินทอน:</span>
+                    <span className="font-bold text-green-600">{receiptData.change.toFixed(2)} ฿</span>
+                  </div>
+
+                  <div className="flex justify-between text-sm text-gray-600 pt-2">
+                    <span>วิธีชำระเงิน:</span>
+                    <span className="font-medium">
+                      {receiptData.paymentMethod === "cash" ? "เงินสด" : "QR Code"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div className="mt-6 pt-4 border-t text-center">
+                  <p className="text-sm text-gray-500 mb-1">ขอบคุณที่ใช้บริการ</p>
+                  <p className="text-xs text-gray-400">Thank you for your purchase</p>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="mt-6 flex gap-3">
+                  <button
+                    onClick={() => window.print()}
+                    className="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-lg font-semibold transition"
+                  >
+                    พิมพ์บิล
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsReceiptOpen(false);
+                      setCartItems([]);
+                      setReceiptData(null);
+                    }}
+                    className="flex-1 bg-green-500 hover:bg-green-600 text-white py-3 rounded-lg font-semibold transition"
+                  >
+                    เสร็จสิ้น
+                  </button>
+                </div>
+                
+                <button
+                  onClick={() => setIsReceiptOpen(false)}
+                  className="w-full mt-2 bg-gray-200 hover:bg-gray-300 text-gray-700 py-2 rounded-lg transition"
+                >
+                  ปิด
+                </button>
+              </div>
             </div>
           </div>
         )}
