@@ -55,7 +55,7 @@ async function uploadImageAndGetUrl(file: File | null, current?: string | null) 
 
   const fileName = `${crypto.randomUUID()}-${file.name}`;
 
-  // 📤 อัปโหลดไปยัง Supabase Storage
+  //  Upload to Supabase Storage
   const { data, error } = await createSupabaseServerClient().storage
     .from("menu") // bucket
     .upload(`menus/${fileName}`, file, {
@@ -68,7 +68,7 @@ async function uploadImageAndGetUrl(file: File | null, current?: string | null) 
     throw new Error("อัปโหลดรูปภาพไม่สำเร็จ");
   }
 
-  // ✅ ได้ public URL กลับมา
+  //  ได้ public URL กลับมา
   const { data: urlData } = await createSupabaseServerClient().storage
     .from("menu")
     .getPublicUrl(`menus/${fileName}`);
