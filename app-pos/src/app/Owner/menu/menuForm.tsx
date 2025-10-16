@@ -1,602 +1,397 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { X, Plus, Minus, Plus as PlusIcon } from "lucide-react";
-import { MenuData, CategoryData } from "@/types/type";
-import { getMenus } from "@/actions/menu";
-import { getCategories } from "@/actions/categories";
+import { X, Plus, Minus } from "lucide-react";
 import { toast } from "sonner";
 
-interface CartItem {
-  id: string;
-  name: string;
-  price: number;
-  qty: number;
-  image?: string;
-}
+import { getMenus } from "@/actions/menu";
+import { getCategories } from "@/actions/categories";
+import { createOrderWithReceipt } from "@/actions/sales";
+import type { MenuData, CategoryData } from "@/types/type";
 
-interface ReceiptData {
-  items: CartItem[];
-  total: number;
-  paid: number;
-  change: number;
-  paymentMethod: "cash" | "qr";
-  date: Date;
-}
+const fmt = (n: number) =>
+  new Intl.NumberFormat("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(
+    Number(n || 0)
+  );
 
-/* ---------- Main ---------- */
-const MenuForm = () => {
-  const [isPayOpen, setIsPayOpen] = useState(false);
-  const [payMethod, setPayMethod] = useState<"cash" | "qr">("cash");
-  const [isReceiptOpen, setIsReceiptOpen] = useState(false);
-  const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
+type CartItem = { id: string; name: string; price: number; qty: number; image?: string };
 
-  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+/** ถ้ามี NEXT_PUBLIC_POS_USER_ID จะส่งไปด้วย ถ้าไม่มีปล่อยว่าง -> server จะหา/สร้าง POS user ให้เอง */
+const ENV_POS_USER = process.env.NEXT_PUBLIC_POS_USER_ID;
+
+export default function MenuForm() {
+  const router = useRouter();
+
   const [menuItems, setMenuItems] = useState<MenuData[]>([]);
   const [categories, setCategories] = useState<CategoryData[]>([]);
-  const [activeCat, setActiveCat] = useState<string>("all");
-  const [isLoading, setIsLoading] = useState(true);
+  const [activeCat, setActiveCat] = useState("all");
+  const [loading, setLoading] = useState(true);
 
-  const [selectedItem, setSelectedItem] = useState<MenuData | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [quantity, setQuantity] = useState(1);
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [sel, setSel] = useState<MenuData | null>(null);
+  const [qty, setQty] = useState(1);
+  const [qtyOpen, setQtyOpen] = useState(false);
+
+  const [payOpen, setPayOpen] = useState(false);
+  const [method, setMethod] = useState<"cash" | "qr">("cash");
+  const [paid, setPaid] = useState(0);
 
   useEffect(() => {
-    const fetchAll = async () => {
+    (async () => {
       try {
-        setIsLoading(true);
+        setLoading(true);
         const [m, c] = await Promise.all([getMenus(), getCategories()]);
         if (m.success && m.data) setMenuItems(m.data);
-        else toast.error(m.error || "ไม่สามารถโหลดข้อมูลเมนูได้");
-
+        else toast.error(m.error || "โหลดเมนูล้มเหลว");
         if (c.success && c.data) setCategories(c.data);
-        else toast.error(c.error || "ไม่สามารถโหลดหมวดหมู่ได้");
-      } catch (error: any) {
-        toast.error(error.message || "เกิดข้อผิดพลาดในการโหลดข้อมูล");
+        else toast.error(c.error || "โหลดหมวดหมู่ล้มเหลว");
+      } catch (e: any) {
+        toast.error(e.message || "เกิดข้อผิดพลาด");
       } finally {
-        setIsLoading(false);
+        setLoading(false);
       }
-    };
-    fetchAll();
+    })();
   }, []);
 
-  const handleCardClick = (item: MenuData) => {
-    setSelectedItem(item);
-    setQuantity(1);
-    setIsModalOpen(true);
-  };
-
-  const handleAddToCart = () => {
-    if (!selectedItem) return;
-    setCartItems((prev) => {
-      const exist = prev.find((i) => i.id === selectedItem.menuID);
-      if (exist) {
-        return prev.map((i) =>
-          i.id === selectedItem.menuID ? { ...i, qty: i.qty + quantity } : i
-        );
-      }
-      return [
-        ...prev,
-        {
-          id: selectedItem.menuID!,
-          name: selectedItem.menuName,
-          price: selectedItem.price,
-          qty: quantity,
-          image: selectedItem.imageUrl,
-        },
-      ];
-    });
-    setIsModalOpen(false);
-    setSelectedItem(null);
-  };
-
-  const handleRemoveItem = (id: string) =>
-    setCartItems((prev) => prev.filter((i) => i.id !== id));
-
-  const increaseQuantity = () => setQuantity((p) => p + 1);
-  const decreaseQuantity = () => setQuantity((p) => (p > 1 ? p - 1 : p));
-
-  const handleUpdateQty = (id: string, action: "increase" | "decrease") => {
-    setCartItems((prev) =>
-      prev.map((item) => {
-        if (item.id !== id) return item;
-        if (action === "increase") return { ...item, qty: item.qty + 1 };
-        if (action === "decrease" && item.qty > 1) return { ...item, qty: item.qty - 1 };
-        return item;
-      })
-    );
-  };
-
-  const totalItems = useMemo(
-    () => cartItems.reduce((sum, item) => sum + item.qty, 0),
-    [cartItems]
-  );
-  const totalPrice = useMemo(
-    () => cartItems.reduce((sum, item) => sum + item.price * item.qty, 0),
-    [cartItems]
-  );
-
-  const visibleMenus = useMemo(() => {
+  const visible = useMemo(() => {
     if (activeCat === "all") return menuItems;
     return menuItems.filter((m) => (m.categories || []).includes(activeCat));
   }, [menuItems, activeCat]);
 
-  /* ---------- Cash / QR Payment ---------- */
-  const CashPayment = ({ total, onClose }: { total: number; onClose: () => void }) => {
-    const [paid, setPaid] = useState(0);
-    const change = paid - total;
-    const buttons = [1000, 500, 100, 50, 20, 10, 5, 1];
+  const total = useMemo(() => cart.reduce((s, i) => s + i.price * i.qty, 0), [cart]);
+  const count = useMemo(() => cart.reduce((s, i) => s + i.qty, 0), [cart]);
 
-    const handleConfirm = () => {
-      if (change >= 0) {
-        setReceiptData({
-          items: [...cartItems],
-          total: totalPrice,
-          paid: paid,
-          change: change,
-          paymentMethod: "cash",
-          date: new Date(),
-        });
-        setIsPayOpen(false);
-        setIsReceiptOpen(true);
-      } else {
-        toast.error("จำนวนเงินไม่เพียงพอ");
-      }
-    };
-
-    return (
-      <div>
-        <div className="bg-orange-50 rounded p-3 mb-4 text-sm space-y-2">
-          <p>ยอดเงินที่ต้องชำระ : <span className="text-red-600">{total}</span></p>
-          <p>ลูกค้าจ่าย : <span className="text-red-600">{paid}</span></p>
-          <p>เงินทอน : <span className="font-bold">{change >= 0 ? change : 0}</span></p>
-        </div>
-        <div className="grid grid-cols-4 gap-2 mb-4">
-          {buttons.map((val) => (
-            <button
-              key={val}
-              className="py-2 rounded-md bg-orange-100 hover:bg-orange-200"
-              onClick={() => setPaid((p) => p + val)}
-            >
-              {val}
-            </button>
-          ))}
-        </div>
-        <div className="flex justify-between">
-          <button className="bg-red-400 text-white px-4 py-2 rounded-md" onClick={() => setPaid(0)}>ล้าง</button>
-          <div className="flex gap-2">
-            <button className="bg-gray-300 px-4 py-2 rounded-md" onClick={onClose}>ปิด</button>
-            <button 
-              className="bg-blue-500 text-white px-4 py-2 rounded-md disabled:bg-gray-400 disabled:cursor-not-allowed" 
-              onClick={handleConfirm}
-              disabled={change < 0}
-            >
-              ตกลง
-            </button>
-          </div>
-        </div>
-      </div>
-    );
+  const onChoose = (m: MenuData) => {
+    setSel(m);
+    setQty(1);
+    setQtyOpen(true);
   };
 
-  const QrPayment = ({ total, onClose }: { total: number; onClose: () => void }) => {
-    const handleConfirm = () => {
-      setReceiptData({
-        items: [...cartItems],
-        total: totalPrice,
-        paid: total,
-        change: 0,
-        paymentMethod: "qr",
-        date: new Date(),
-      });
-      setIsPayOpen(false);
-      setIsReceiptOpen(true);
-    };
+  const addToCart = () => {
+    if (!sel) return;
+    setCart((prev) => {
+      const f = prev.find((i) => i.id === sel.menuID);
+      if (f) return prev.map((i) => (i.id === f.id ? { ...i, qty: i.qty + qty } : i));
+      return [
+        ...prev,
+        {
+          id: sel.menuID,
+          name: sel.menuName,
+          price: Number(sel.price),
+          qty,
+          image: sel.imageUrl,
+        },
+      ];
+    });
+    setQtyOpen(false);
+    setSel(null);
+  };
 
-    return (
-      <div className="flex flex-col items-center">
-        <p className="mb-2">ยอดชำระ : {total} บาท</p>
-        <div className="w-40 h-40 bg-gray-200 flex items-center justify-center mb-4">QR Code</div>
-        <button 
-          className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600" 
-          onClick={handleConfirm}
-        >
-          เสร็จสิ้น
-        </button>
-      </div>
+  const modQty = (id: string, dir: "inc" | "dec") =>
+    setCart((prev) =>
+      prev.map((i) =>
+        i.id === id ? { ...i, qty: Math.max(1, i.qty + (dir === "inc" ? 1 : -1)) } : i
+      )
     );
+  const delItem = (id: string) => setCart((p) => p.filter((i) => i.id !== id));
+
+  const quick = [1000, 500, 100, 50, 20, 10, 5, 1];
+
+  const confirmPay = async () => {
+    if (cart.length === 0) return toast.error("ยังไม่มีสินค้าในตะกร้า");
+    if (method === "cash" && paid < total) return toast.error("จำนวนเงินไม่พอ");
+
+    try {
+      const res = await createOrderWithReceipt({
+        items: cart.map((c) => ({ menuID: c.id, qty: c.qty, price: c.price })),
+        amountPaid: method === "cash" ? paid : total,
+        paymentMethod: method,
+        userID: ENV_POS_USER || undefined, // ส่งก็ติดดี ไม่ส่งก็ได้
+      });
+      if (!res.success || !res.data) throw new Error(res.error || "บันทึกไม่สำเร็จ");
+      toast.success("บันทึกการขายสำเร็จ");
+      setPayOpen(false);
+      setCart([]);
+      router.push("/Owner/sale");
+    } catch (e: any) {
+      toast.error(e.message || "เกิดข้อผิดพลาดในการบันทึก");
+    }
   };
 
   return (
-    <>
-      <div className="item-center justify-center bg-[#FFFDE4] ">
-        <div className="flex">
-          {/* Left side */}
-          <div className="flex-1 p-6">
-            <header className="w-full">
-              <div className="container mx-auto px-6 h-[70px] flex items-center justify-between">
-                {/* --- Category Chips (UI ใหม่) --- */}
-                <ToggleGroup
-                  type="single"
-                  value={activeCat}
-                  onValueChange={(v) => setActiveCat(v || "all")}
-                  className="flex gap-3 overflow-x-auto py-1 pr-1"
+    <div className="bg-[#FFFDE4] min-h-screen">
+      <div className="flex">
+        {/* LEFT */}
+        <div className="flex-1 p-6">
+          <div className="container mx-auto h-[70px] flex items-center px-1 sm:px-4">
+            <ToggleGroup
+              type="single"
+              value={activeCat}
+              onValueChange={(v) => setActiveCat(v || "all")}
+              className="flex gap-3 overflow-x-auto py-1 pr-1"
+            >
+              <ToggleGroupItem
+                value="all"
+                className={[
+                  "group inline-flex items-center gap-2 rounded-full px-4 h-9 text-sm font-semibold transition",
+                  "border border-[#8B4513]/70 shadow-sm",
+                  "bg-white text-[#3c2a1e]",
+                  "data-[state=on]:bg-[#8B4513] data-[state=on]:text-white",
+                  "hover:bg-[#8B4513]/10 data-[state=on]:hover:bg-[#8B4513]",
+                ].join(" ")}
+              >
+                <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-400/90 group-data-[state=on]:bg-white" />
+                All
+              </ToggleGroupItem>
+              {categories.map((c) => (
+                <ToggleGroupItem
+                  key={c.categoryID}
+                  value={c.categoryID}
+                  className={[
+                    "group inline-flex items-center gap-2 rounded-full px-4 h-9 text-sm font-semibold transition",
+                    "border border-[#8B4513]/70 shadow-sm",
+                    "bg-white text-[#3c2a1e]",
+                    "data-[state=on]:bg-[#8B4513] data-[state=on]:text-white",
+                    "hover:bg-[#8B4513]/10 data-[state=on]:hover:bg-[#8B4513]",
+                  ].join(" ")}
                 >
-                  <ToggleGroupItem
-                    value="all"
-                    aria-label="All"
-                    className={[
-                      "group inline-flex items-center gap-2 rounded-full px-4 h-9 text-sm font-semibold transition",
-                      "border border-[#8B4513]/70 shadow-sm",
-                      "bg-white text-[#3c2a1e]",
-                      "data-[state=on]:bg-[#8B4513] data-[state=on]:text-white",
-                      "hover:bg-[#8B4513]/10 data-[state=on]:hover:bg-[#8B4513]",
-                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8B4513]/40",
-                    ].join(" ")}
-                  >
-                    <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-400/90 group-data-[state=on]:bg-white" />
-                    All
-                  </ToggleGroupItem>
+                  <span className="inline-block w-2.5 h-2.5 rounded-full bg-[#D9ECD0] group-data-[state=on]:bg-white" />
+                  <span className="truncate max-w-[10rem]">{c.categoryName}</span>
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
+          </div>
 
-                  {categories.map((cat) => (
-                    <ToggleGroupItem
-                      key={cat.categoryID}
-                      value={cat.categoryID}
-                      aria-label={cat.categoryName}
-                      className={[
-                        "group inline-flex items-center gap-2 rounded-full px-4 h-9 text-sm font-semibold transition",
-                        "border border-[#8B4513]/70 shadow-sm",
-                        "bg-white text-[#3c2a1e]",
-                        "data-[state=on]:bg-[#8B4513] data-[state=on]:text-white",
-                        "hover:bg-[#8B4513]/10 data-[state=on]:hover:bg-[#8B4513]",
-                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8B4513]/40",
-                      ].join(" ")}
-                    >
-                      <span className="inline-block w-2.5 h-2.5 rounded-full bg-[#D9ECD0] group-data-[state=on]:bg-white" />
-                      <span className="truncate max-w-[9rem]">{cat.categoryName}</span>
-                    </ToggleGroupItem>
-                  ))}
-                </ToggleGroup>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6 px-2 sm:px-4 mt-4">
+            {loading ? (
+              <div className="col-span-full flex justify-center items-center h-64">กำลังโหลดข้อมูล...</div>
+            ) : visible.length === 0 ? (
+              <div className="col-span-full flex justify-center items-center h-64 text-gray-500">
+                ยังไม่มีเมนู
               </div>
-            </header>
-
-            {/* Menu cards */}
-            <aside className="grid grid-cols-3 gap-10 p-6 mx-5">
-              {isLoading ? (
-                <div className="col-span-3 flex justify-center items-center h-64">
-                  <div className="text-lg">กำลังโหลดข้อมูล...</div>
-                </div>
-              ) : visibleMenus.length === 0 ? (
-                <div className="col-span-3 flex flex-col justify-center items-center h-64">
-                  <div className="text-lg text-gray-500 mb-4">ยังไม่มีเมนู</div>
-                </div>
-              ) : (
-                visibleMenus.map((item) => (
-                  <Card
-                    key={item.menuID}
-                    className="w-[219px] h-[300px] border-none bg-white cursor-pointer hover:shadow-lg transition-shadow"
-                    onClick={() => handleCardClick(item)}
-                  >
-                    <CardHeader>
-                      <CardTitle>
-                        <div className="w-[180px] h-[180px] bg-gray-200 ml-[-4px] mb-2 rounded-md flex items-center justify-center overflow-hidden">
-                          {item.imageUrl ? (
-                            <img
-                              src={item.imageUrl}
-                              alt={item.menuName}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <span className="text-gray-500">รูปภาพ</span>
-                          )}
-                        </div>
-                      </CardTitle>
-                      <CardDescription className="my-1">{item.menuName}</CardDescription>
-                    </CardHeader>
-                    <CardFooter className="ml-[100px]">
-                      <p className="text-[#000000] font-medium">{item.price} THB</p>
-                    </CardFooter>
-                  </Card>
-                ))
-              )}
-            </aside>
+            ) : (
+              visible.map((m) => (
+                <Card
+                  key={m.menuID}
+                  className="w-full border-none bg-white cursor-pointer hover:shadow-lg transition-shadow"
+                  onClick={() => onChoose(m)}
+                >
+                  <CardHeader className="pb-2">
+                    <CardTitle className="mb-2">
+                      <div className="w-full aspect-square bg-gray-100 rounded-md overflow-hidden flex items-center justify-center">
+                        {m.imageUrl ? (
+                          <img src={m.imageUrl} alt={m.menuName} className="w-full h-full object-cover" />
+                        ) : (
+                          <span className="text-gray-400 text-sm">รูปภาพ</span>
+                        )}
+                      </div>
+                    </CardTitle>
+                    <CardDescription className="text-[15px]">{m.menuName}</CardDescription>
+                  </CardHeader>
+                  <CardFooter className="pt-0">
+                    <p className="text-[#000] font-semibold text-[15px] whitespace-nowrap">
+                      {fmt(Number(m.price))} THB
+                    </p>
+                  </CardFooter>
+                </Card>
+              ))
+            )}
           </div>
         </div>
 
-        {/* Right cart panel */}
-        <div className="fixed top-0 right-0 h-screen w-[350px] bg-white rounded-l-lg shadow-lg p-4 flex flex-col">
-          <div className="flex-1 overflow-auto">
-            <div className="border-none rounded-lg">
-              <div className="bg-[#F1E9E5] border-none  rounded-md shadow-md mb-4">
-                <div className="text-[16px] grid grid-cols-6 w-[317px] h-[69px] gap-2 p-2 text-sm font-semibold justify-center items-center ">
-                  <div>No</div>
-                  <div className="col-span-2">สินค้า</div>
-                  <div>ราคา</div>
-                  <div>จำนวน</div>
-                  <div>ลบ</div>
-                </div>
-              </div>
-              <div>
-                {cartItems.map((cartItem, i) => (
-                  <div
-                    key={cartItem.id}
-                    className="grid grid-cols-6 gap-2 p-2 border-b last:border-b-0 text-sm items-center"
-                  >
-                    <div>{i + 1}</div>
-                    <div className="col-span-2 truncate">{cartItem.name}</div>
-                    <div>{cartItem.price} ฿</div>
-                    <div className="flex items-center gap-1">
-                      <button
-                        className="w-5 h-5 flex items-center justify-center text-gray-500 hover:text-red-500 disabled:opacity-50"
-                        onClick={() => handleUpdateQty(cartItem.id, "decrease")}
-                        disabled={cartItem.qty <= 1}
-                      >
-                        <Minus size={14} />
-                      </button>
-                      <span>{cartItem.qty}</span>
-                      <button
-                        className="w-5 h-5 flex items-center justify-center text-gray-500 hover:text-green-500"
-                        onClick={() => handleUpdateQty(cartItem.id, "increase")}
-                      >
-                        <Plus size={14} />
-                      </button>
-                    </div>
-                    <div>
-                      <button
-                        className="text-red-500 hover:text-red-700"
-                        onClick={() => handleRemoveItem(cartItem.id)}
-                      >
-                        ลบ
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+        {/* RIGHT CART */}
+        <aside className="fixed top-0 right-0 h-screen w-[360px] bg-white rounded-l-lg shadow-lg p-4 flex flex-col">
+          <div className="bg-[#F1E9E5] rounded-md shadow mb-4">
+            <div className="text-[16px] grid grid-cols-6 w-full h-[54px] gap-2 p-2 text-sm font-semibold items-center">
+              <div>No</div>
+              <div className="col-span-2">สินค้า</div>
+              <div>ราคา</div>
+              <div>จำนวน</div>
+              <div>ลบ</div>
             </div>
           </div>
 
+          <div className="flex-1 overflow-auto">
+            {cart.map((it, idx) => (
+              <div key={it.id} className="grid grid-cols-6 gap-2 p-2 border-b text-sm items-center">
+                <div>{idx + 1}</div>
+                <div className="col-span-2 truncate">{it.name}</div>
+                <div>{fmt(it.price)} ฿</div>
+                <div className="flex items-center gap-1">
+                  <button
+                    className="w-5 h-5 flex items-center justify-center text-gray-500 hover:text-red-500 disabled:opacity-50"
+                    onClick={() => modQty(it.id, "dec")}
+                    disabled={it.qty <= 1}
+                  >
+                    <Minus size={14} />
+                  </button>
+                  <span>{it.qty}</span>
+                  <button
+                    className="w-5 h-5 flex items-center justify-center text-gray-500 hover:text-green-500"
+                    onClick={() => modQty(it.id, "inc")}
+                  >
+                    <Plus size={14} />
+                  </button>
+                </div>
+                <div>
+                  <button className="text-red-500 hover:text-red-700" onClick={() => delItem(it.id)}>
+                    ลบ
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
           <div className="mt-auto flex justify-between items-center pt-4 border-t">
-            <span className="font-bold">รายการ: {totalItems}</span>
+            <span className="font-bold">รายการ: {count}</span>
             <button
-              onClick={() => setIsPayOpen(true)}
+              onClick={() => {
+                if (cart.length === 0) return toast.error("ยังไม่มีสินค้าในตะกร้า");
+                setPaid(0);
+                setMethod("cash");
+                setPayOpen(true);
+              }}
               className="bg-green-200 px-4 py-2 rounded-md hover:bg-green-300 transition-colors"
             >
               ดำเนินการต่อ
             </button>
           </div>
-        </div>
+        </aside>
+      </div>
 
-        {/* Quantity modal */}
-        {isModalOpen && selectedItem && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 ">
-            <div className="bg-white p-[20px] rounded-lg w-[711px] h-[468px] mx-4 overflow-hidden ">
-              <div className="flex justify-between items-center p-4 ">
-                <h2 className="text-lg text-[32px] font-bold">Menu</h2>
-                <button
-                  onClick={() => setIsModalOpen(false)}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  <X size={20} />
-                </button>
+      {/* QTY MODAL */}
+      {qtyOpen && sel && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white p-5 rounded-lg w-[720px] max-w-[92vw]">
+            <div className="flex justify-between items-center mb-3">
+              <h2 className="text-2xl font-bold">เพิ่มรายการ</h2>
+              <button onClick={() => setQtyOpen(false)} className="text-gray-500 hover:text-gray-700">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="flex gap-6">
+              <div className="w-56 h-56 bg-gray-100 rounded-md overflow-hidden flex items-center justify-center">
+                {sel.imageUrl ? (
+                  <img src={sel.imageUrl} alt={sel.menuName} className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-gray-400">รูปภาพ</span>
+                )}
               </div>
 
-              <div className="p-4 mb-[-20px]  flex justify-space-between ">
-                <div className="min-w-[300px]  bg-white rounded-lg p-4 ">
-                  <p className="text-[20px] font-medium text-black mb-[25px]">
-                    {selectedItem.menuName} {selectedItem.price} บาท
-                  </p>
-                  <div className="flex w-[200px] h-[200px] bg-gray-200 rounded-md mb-4 flex items-center justify-center overflow-hidden">
-                    {selectedItem.imageUrl ? (
-                      <img
-                        src={selectedItem.imageUrl}
-                        alt={selectedItem.menuName}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <span className="text-gray-500 text-sm">รูปภาพ</span>
-                    )}
+              <div className="flex-1">
+                <p className="text-xl font-medium mb-2">{sel.menuName}</p>
+                <p className="text-lg text-gray-700 mb-6">{fmt(Number(sel.price))} บาท</p>
+
+                <div>
+                  <div className="text-lg">จำนวน</div>
+                  <div className="flex items-center mt-3">
+                    <button
+                      onClick={() => setQty((q) => Math.max(1, q - 1))}
+                      className="w-8 h-8 rounded-full bg-red-100 text-red-500 flex items-center justify-center hover:bg-red-200"
+                    >
+                      <Minus size={18} />
+                    </button>
+                    <span className="mx-4 font-semibold text-lg">{qty}</span>
+                    <button
+                      onClick={() => setQty((q) => q + 1)}
+                      className="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center hover:bg-green-200"
+                    >
+                      <Plus size={18} />
+                    </button>
+                  </div>
+
+                  <div className="mt-5 bg-orange-200 rounded-lg p-3 text-lg">
+                    ราคาขาย : <span className="font-semibold">{fmt(Number(sel.price) * qty)}</span>
                   </div>
                 </div>
 
-                <div className="p-4 ml-[-60px] mt-[40px]">
-                  <div className=" items-center mb-[50px]">
-                    <span className="text-[20px]">จำนวน</span>
-                    <div className="flex items-center mt-[20px]">
-                      <button
-                        onClick={decreaseQuantity}
-                        className="w-8 h-8 rounded-full bg-red-100 text-red-500 flex items-center justify-center hover:bg-red-200"
-                        disabled={quantity <= 1}
-                      >
-                        <Minus size={20} />
-                      </button>
-                      <span className="mx-4 font-semibold">{quantity}</span>
-                      <button
-                        onClick={increaseQuantity}
-                        className="w-8 h-8 rounded-full bg-green-100 text-green-500 flex items-center justify-center hover:bg-green-200"
-                      >
-                        <Plus size={20} />
-                      </button>
-                    </div>
-                  </div>
-                  <div className="w-[393px] bg-orange-200 rounded-lg p-3 mb-4 text-[20px]">
-                    <span className="font-medium text-black ml-[20px]">
-                      ราคาขาย : {selectedItem.price * quantity}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex-row gap-3">
-                <div className="flex justify-end gap-3">
-                  <button
-                    onClick={() => setIsModalOpen(false)}
-                    className="w-[90px] h-[50px] bg-gray-300 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-400 transition-colors text-[20px]"
-                  >
+                <div className="mt-6 flex justify-end gap-3">
+                  <button className="w-[90px] h-[44px] bg-gray-300 rounded-md hover:bg-gray-400" onClick={() => setQtyOpen(false)}>
                     ปิด
                   </button>
-                  <button
-                    onClick={handleAddToCart}
-                    className="w-[90px] h-[50px] bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600 transition-colors text-[20px]"
-                  >
+                  <button className="w-[90px] h-[44px] bg-blue-600 text-white rounded-md hover:bg-blue-700" onClick={addToCart}>
                     ตกลง
                   </button>
                 </div>
               </div>
             </div>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Pay modal */}
-        {isPayOpen && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg w-[400px] p-5">
-              <div className="flex justify-between items-center border-b pb-2 mb-4">
-                <h2 className="text-xl font-bold border-none">จ่ายเงิน</h2>
-                <button onClick={() => setIsPayOpen(false)}>✕</button>
-              </div>
-
-              <div className="flex gap-2 mb-4">
-                <button
-                  className={`flex-1 py-2 rounded-md ${payMethod === "cash" ? "bg-blue-500 text-white" : "bg-gray-100"}`}
-                  onClick={() => setPayMethod("cash")}
-                >
-                  เงินสด
-                </button>
-                <button
-                  className={`flex-1 py-2 rounded-md ${payMethod === "qr" ? "bg-blue-500 text-white" : "bg-gray-100"}`}
-                  onClick={() => setPayMethod("qr")}
-                >
-                  QR
-                </button>
-              </div>
-
-              {payMethod === "cash" ? (
-                <CashPayment total={totalPrice} onClose={() => setIsPayOpen(false)} />
-              ) : (
-                <QrPayment total={totalPrice} onClose={() => setIsPayOpen(false)} />
-              )}
+      {/* PAY MODAL */}
+      {payOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg w-[420px] p-5">
+            <div className="flex justify-between items-center border-b pb-2 mb-4">
+              <h2 className="text-xl font-bold">จ่ายเงิน</h2>
+              <button onClick={() => setPayOpen(false)}>✕</button>
             </div>
-          </div>
-        )}
 
-        {/* Receipt modal */}
-        {isReceiptOpen && receiptData && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg w-[400px] max-h-[90vh] overflow-auto shadow-2xl">
-              {/* Header */}
-              <div className="bg-[#765827] p-6 text-white text-center">
-                <h2 className="text-2xl font-bold mb-1">ใบเสร็จรับเงิน</h2>
-                <p className="text-sm opacity-90">Receipt</p>
-              </div>
+            <div className="flex gap-2 mb-4">
+              <button
+                className={`flex-1 py-2 rounded-md ${method === "cash" ? "bg-blue-500 text-white" : "bg-gray-100"}`}
+                onClick={() => setMethod("cash")}
+              >
+                เงินสด
+              </button>
+              <button
+                className={`flex-1 py-2 rounded-md ${method === "qr" ? "bg-blue-500 text-white" : "bg-gray-100"}`}
+                onClick={() => setMethod("qr")}
+              >
+                QR
+              </button>
+            </div>
 
-              {/* Receipt Content */}
-              <div className="p-6">
-                {/* Date & Time */}
-                <div className="text-center mb-6 pb-4 border-b-2 border-dashed border-gray-300">
-                  <p className="text-sm text-gray-600">
-                    {receiptData.date.toLocaleDateString('th-TH', { 
-                      year: 'numeric', 
-                      month: 'long', 
-                      day: 'numeric' 
-                    })}
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    {receiptData.date.toLocaleTimeString('th-TH', {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                      second: '2-digit'
-                    })}
-                  </p>
+            {method === "cash" ? (
+              <>
+                <div className="bg-orange-50 rounded p-3 mb-4 text-sm space-y-2">
+                  <p>ยอดชำระ : <span className="text-red-600">{fmt(total)}</span></p>
+                  <p>ลูกค้าจ่าย : <span className="text-red-600">{fmt(paid)}</span></p>
+                  <p>เงินทอน : <span className="font-bold">{fmt(Math.max(0, paid - total))}</span></p>
                 </div>
-
-                {/* Items List */}
-                <div className="mb-6">
-                  <div className="flex justify-between text-sm font-semibold mb-3 pb-2 border-b">
-                    <span>รายการ</span>
-                    <span>ราคา</span>
-                  </div>
-                  {receiptData.items.map((item, index) => (
-                    <div key={index} className="mb-3">
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1">
-                          <p className="font-medium">{item.name}</p>
-                          <p className="text-sm text-gray-500">
-                            {item.price} x {item.qty}
-                          </p>
-                        </div>
-                        <p className="font-semibold">{(item.price * item.qty).toFixed(2)} ฿</p>
-                      </div>
-                    </div>
+                <div className="grid grid-cols-4 gap-2 mb-4">
+                  {quick.map((v) => (
+                    <button key={v} className="py-2 rounded-md bg-orange-100 hover:bg-orange-200" onClick={() => setPaid((p) => p + v)}>
+                      {v}
+                    </button>
                   ))}
                 </div>
-
-                {/* Summary */}
-                <div className="border-t-2 border-dashed border-gray-300 pt-4 space-y-3">
-                  <div className="flex justify-between text-lg">
-                    <span>ยอดรวม:</span>
-                    <span className="font-bold">{receiptData.total.toFixed(2)} ฿</span>
-                  </div>
-                  
-                  <div className="flex justify-between">
-                    <span>รับเงิน:</span>
-                    <span className="font-semibold">{receiptData.paid.toFixed(2)} ฿</span>
-                  </div>
-                  
-                  <div className="flex justify-between text-lg bg-green-50 p-3 rounded-lg">
-                    <span className="font-semibold">เงินทอน:</span>
-                    <span className="font-bold text-green-600">{receiptData.change.toFixed(2)} ฿</span>
-                  </div>
-
-                  <div className="flex justify-between text-sm text-gray-600 pt-2">
-                    <span>วิธีชำระเงิน:</span>
-                    <span className="font-medium">
-                      {receiptData.paymentMethod === "cash" ? "เงินสด" : "QR Code"}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Footer */}
-                <div className="mt-6 pt-4 border-t text-center">
-                  <p className="text-sm text-gray-500 mb-1">ขอบคุณที่ใช้บริการ</p>
-                  <p className="text-xs text-gray-400">Thank you for your purchase</p>
-                </div>
-
-                {/* Action Buttons */}
-                <div className="mt-6 flex gap-3">
-                  <button
-                    onClick={() => window.print()}
-                    className="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-lg font-semibold transition"
-                  >
-                    พิมพ์บิล
+                <div className="flex justify-between">
+                  <button className="bg-red-400 text-white px-4 py-2 rounded-md" onClick={() => setPaid(0)}>
+                    ล้าง
                   </button>
-                  <button
-                    onClick={() => {
-                      setIsReceiptOpen(false);
-                      setCartItems([]);
-                      setReceiptData(null);
-                    }}
-                    className="flex-1 bg-green-500 hover:bg-green-600 text-white py-3 rounded-lg font-semibold transition"
-                  >
-                    เสร็จสิ้น
-                  </button>
+                  <div className="flex gap-2">
+                    <button className="bg-gray-300 px-4 py-2 rounded-md" onClick={() => setPayOpen(false)}>
+                      ปิด
+                    </button>
+                    <button
+                      className="bg-blue-500 text-white px-4 py-2 rounded-md disabled:bg-gray-400 disabled:cursor-not-allowed"
+                      onClick={confirmPay}
+                      disabled={paid < total}
+                    >
+                      ตกลง
+                    </button>
+                  </div>
                 </div>
-                
-                <button
-                  onClick={() => setIsReceiptOpen(false)}
-                  className="w-full mt-2 bg-gray-200 hover:bg-gray-300 text-gray-700 py-2 rounded-lg transition"
-                >
-                  ปิด
+              </>
+            ) : (
+              <div className="flex flex-col items-center">
+                <p className="mb-2">ยอดชำระ : {fmt(total)} บาท</p>
+                <div className="w-40 h-40 bg-gray-200 flex items-center justify-center mb-4">QR Code</div>
+                <button className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600" onClick={confirmPay}>
+                  เสร็จสิ้น
                 </button>
               </div>
-            </div>
+            )}
           </div>
-        )}
-      </div>
-    </>
+        </div>
+      )}
+    </div>
   );
-};
-
-export default MenuForm;
+}
