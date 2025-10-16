@@ -30,7 +30,8 @@ export default function EmployeesPage() {
     reset,
     formState: { errors, isSubmitting },
   } = useForm<UIRegisterInput | UIUpdateUserInput>({
-    resolver: zodResolver(isEdit ? UIUpdateUserSchema : UIRegisterSchema),
+    // cast resolver to any to avoid incompatible Resolver overload between two schemas
+    resolver: zodResolver(isEdit ? UIUpdateUserSchema : UIRegisterSchema) as any,
     mode: "onBlur",
   });
 

@@ -17,6 +17,7 @@ export interface MenuFormData {
   categories?: string[];
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export interface ApiResponse<T = any> {
   success: boolean;
   data?: T;
