@@ -53,14 +53,22 @@ async function uploadImageAndGetUrl(file: File | null, current?: string | null) 
     return current ?? undefined;
   }
 
-  const fileName = `${crypto.randomUUID()}-${file.name}`;
+  // สร้างชื่อไฟล์ปลอดภัยด้วย UUID + นามสกุลที่เป็นตัวอักษร/ตัวเลขเท่านั้น
+  const rawExt = (file.name?.split('.')?.pop() || '').toLowerCase();
+  const safeExt = /^[a-z0-9]{1,5}$/.test(rawExt) ? rawExt : 'png';
+  const fileName = `${crypto.randomUUID()}.${safeExt}`;
+
+  // แปลงเป็น Buffer เพื่ออัปโหลดจากฝั่ง server action
+  const buffer = Buffer.from(await file.arrayBuffer());
 
   //  Upload to Supabase Storage
-  const { data, error } = await createSupabaseServerClient().storage
+  const supa = createSupabaseServerClient();
+  const { error } = await supa.storage
     .from("menu") // bucket
-    .upload(`menus/${fileName}`, file, {
+    .upload(`menus/${fileName}`, buffer, {
       cacheControl: "3600",
       upsert: false,
+      contentType: file.type || `image/${safeExt}`,
     });
 
   if (error) {
@@ -69,7 +77,7 @@ async function uploadImageAndGetUrl(file: File | null, current?: string | null) 
   }
 
   //  ได้ public URL กลับมา
-  const { data: urlData } = await createSupabaseServerClient().storage
+  const { data: urlData } = await supa.storage
     .from("menu")
     .getPublicUrl(`menus/${fileName}`);
 
@@ -224,3 +232,4 @@ export async function deleteMenu(menuID: string): Promise<ApiResponse<{ message:
     return { success: false, error: "ไม่สามารถลบเมนูได้" };
   }
 }
+

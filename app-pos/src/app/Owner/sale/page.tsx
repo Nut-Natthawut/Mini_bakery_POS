@@ -34,8 +34,8 @@ export default function SalePage() {
 
   // filter
   const today = useMemo(() => new Date(), []);
-  const [from, setFrom] = useState<string>(toISODateOnly(today));
-  const [to, setTo] = useState<string>(toISODateOnly(today));
+  const [from, setFrom] = useState<string>("");
+  const [to, setTo] = useState<string>("");
   const [seller, setSeller] = useState<string>("all");
   const [method, setMethod] = useState<"all" | "CASH" | "QR">("all");
 
@@ -101,18 +101,24 @@ export default function SalePage() {
   }, [rows]);
 
   // filter rows (ตามช่วงวันที่/ผู้ขาย/วิธีจ่าย)
-  const filtered = useMemo(() => {
-    const fromTime = from ? new Date(from + "T00:00:00").getTime() : -Infinity;
-    const toTime = to ? new Date(to + "T23:59:59.999").getTime() : Infinity;
-
+const filtered = useMemo(() => {
+  if (!from && !to) {
     return rows.filter((r) => {
-      const t = new Date(r.date).getTime();
-      if (t < fromTime || t > toTime) return false;
       if (seller !== "all" && r.seller !== seller) return false;
       if (method !== "all" && r.paymentMethod !== method) return false;
       return true;
     });
-  }, [rows, from, to, seller, method]);
+  }
+  const fromTime = from ? new Date(from + "T00:00:00").getTime() : -Infinity;
+  const toTime   = to   ? new Date(to   + "T23:59:59.999").getTime() : Infinity;
+  return rows.filter((r) => {
+    const t = new Date(r.date).getTime();
+    if (t < fromTime || t > toTime) return false;
+    if (seller !== "all" && r.seller !== seller) return false;
+    if (method !== "all" && r.paymentMethod !== method) return false;
+    return true;
+  });
+}, [rows, from, to, seller, method]);
 
   // summary cards (CASH/QR/เฉลี่ย) คิดจาก filtered rows จริง
   const totalCash = filtered
@@ -413,4 +419,4 @@ export default function SalePage() {
       )}
     </div>
   );
-}
+} 

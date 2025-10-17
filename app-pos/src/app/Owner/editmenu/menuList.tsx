@@ -83,39 +83,87 @@ const MenuList = () => {
   };
 
   return (
-    <div className="w-[1168px] h-[442px] mx-auto">
-      <div className="w-full mx-auto py-6">
-        <div className="bg-white shadow-md rounded-lg overflow-hidden">
-          <div className="grid grid-cols-6 gap-4 p-4 bg-[#BF9270] text-white font-bold">
-            <div>
-              <button onClick={() => setIsAddOpen(true)} className="px-3 py-1 bg-[#D9ECD0] text-black font-poppins rounded-md hover:bg-green-600">
-                เพิ่ม
-              </button>
-            </div>
-            <div>ภาพ</div>
-            <div>เมนู</div>
-            <div>ราคา</div>
-            <div>หมวดหมู่</div>
-          </div>
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      {/* Toolbar */}
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-[#7A4E1A]">แก้ไขเมนู</h2>
+        <button
+          onClick={() => setIsAddOpen(true)}
+          className="px-3 py-2 rounded-md bg-[#E3B7A0] text-[#7A4E1A] hover:bg-[#d7ab96] text-sm font-medium"
+        >
+          เพิ่มเมนู
+        </button>
+      </div>
 
-          {menuItems.map((menu, index) => (
-            <div key={menu.menuID} className="grid grid-cols-6 gap-4 p-4 items-center border-t border-gray-200">
+      <div className="bg-white shadow-md rounded-lg overflow-hidden">
+        {/* Header (desktop and up) */}
+        <div className="hidden sm:grid sm:grid-cols-6 gap-4 p-4 bg-[#BF9270] text-white font-semibold">
+          <div>ลำดับ</div>
+          <div>ภาพ</div>
+          <div>เมนู</div>
+          <div>ราคา</div>
+          <div>หมวดหมู่</div>
+          <div>จัดการ</div>
+        </div>
+
+        {/* Rows */}
+        {menuItems.map((menu, index) => (
+          <div key={menu.menuID} className="border-t border-gray-200">
+            {/* Desktop row */}
+            <div className="hidden sm:grid sm:grid-cols-6 gap-4 p-4 items-center">
               <div>{index + 1}</div>
               <div>
-                <img src={menu.imageUrl || "https://via.placeholder.com/64"} alt={menu.menuName} className="w-16 h-16 object-cover rounded-md" />
+                <img
+                  src={menu.imageUrl || "https://via.placeholder.com/64"}
+                  alt={menu.menuName}
+                  className="w-16 h-16 object-cover rounded-md"
+                />
               </div>
-              <div>{menu.menuName}</div>
+              <div className="truncate">{menu.menuName}</div>
               <div>฿{Number(menu.price).toFixed(2)}</div>
-              <div className="truncate">{(menu.categories || []).length > 0 ? (menu.categories || []).length + " หมวด" : "-"}</div>
-              <div className="flex space-x-2">
+              <div className="truncate">
+                {(menu.categories || []).length > 0
+                  ? `${(menu.categories || []).length} หมวด`
+                  : "-"}
+              </div>
+              <div className="flex gap-2">
                 <EditMenuForm initialData={menu} onUpdate={handleSave} />
-                <button onClick={() => setDeleteTarget(menu)} className="px-3 py-1 text-sm text-white bg-red-500 rounded-md hover:bg-red-600">
+                <button
+                  onClick={() => setDeleteTarget(menu)}
+                  className="px-3 py-1 text-sm text-white bg-red-500 rounded-md hover:bg-red-600"
+                >
                   ลบ
                 </button>
               </div>
             </div>
-          ))}
-        </div>
+
+            {/* Mobile card */}
+            <div className="sm:hidden p-4 flex gap-3">
+              <img
+                src={menu.imageUrl || "https://via.placeholder.com/64"}
+                alt={menu.menuName}
+                className="w-16 h-16 object-cover rounded-md flex-shrink-0"
+              />
+              <div className="flex-1 min-w-0">
+                <div className="text-sm text-gray-500">ลำดับ #{index + 1}</div>
+                <div className="font-medium text-[#7A4E1A] truncate">{menu.menuName}</div>
+                <div className="text-sm">ราคา: ฿{Number(menu.price).toFixed(2)}</div>
+                <div className="text-sm text-gray-600">
+                  หมวดหมู่: {(menu.categories || []).length > 0 ? `${(menu.categories || []).length} หมวด` : "-"}
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <EditMenuForm initialData={menu} onUpdate={handleSave} />
+                  <button
+                    onClick={() => setDeleteTarget(menu)}
+                    className="px-3 py-1 text-sm text-white bg-red-500 rounded-md hover:bg-red-600"
+                  >
+                    ลบ
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
 
       {isAddOpen && (
@@ -148,7 +196,7 @@ const MenuList = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700">หมวดหมู่</label>
-                <div className="mt-2 grid grid-cols-2 gap-2">
+                <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                   {categoriesMaster.map((c) => {
                     const checked = newCategories.includes(c.categoryID);
                     return (
@@ -228,3 +276,4 @@ const MenuList = () => {
 };
 
 export default MenuList;
+
