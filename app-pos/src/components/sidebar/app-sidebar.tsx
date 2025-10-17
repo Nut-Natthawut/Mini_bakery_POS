@@ -11,7 +11,7 @@ import {
   IdCardLanyard,
   TicketPercent,
   Dessert,
-  ReceiptText,          // ⬅️ ใช้เป็นไอคอน Orders
+  ReceiptText,          // ใช้เป็นไอคอน Orders/Receipts
 } from "lucide-react";
 
 import {
@@ -34,7 +34,7 @@ import {
 import { useEffect, useState } from "react";
 import useLogout from "@/hooks/uselogout";
 
-// Menu items.
+// เมนูทั้งหมด
 const items = [
   {
     title: "Home",
@@ -61,10 +61,16 @@ const items = [
     icon: SquarePen,
   },
   {
-    title: "Orders",              // ⬅️ เมนูใหม่
-    path: "/Owner/orders",        // ⬅️ ชี้ไปหน้า orders
-    showFor: ["Owner"],           // ⬅️ ให้แสดงเฉพาะ Owner (จะให้ Staff เห็นก็เติม "Staff")
-    icon: ReceiptText,            // ⬅️ ไอคอน
+    title: "Orders",              // รายการออเดอร์ (ทุกสถานะ)
+    path: "/Owner/orders",
+    showFor: ["Owner"],           // จะให้ Staff เห็นก็เพิ่ม "Staff"
+    icon: ReceiptText,
+  },
+  {
+    title: "Receipts",            // ⬅️ เมนูใหม่: ไปหน้าใบเสร็จ
+    path: "/Owner/receipt",       // แนะนำทำหน้า index ที่ /Owner/receipt เป็นหน้าค้นหา/กรอกเลขบิล
+    showFor: ["Owner"],           // จะเปิดให้ Staff ดูได้ก็เติม "Staff"
+    icon: ReceiptText,
   },
   {
     title: "Sales Reports",

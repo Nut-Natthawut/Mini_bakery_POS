@@ -2,6 +2,7 @@
 
 import { PrismaClient, Prisma, PaymentMethod, Role } from "@prisma/client";
 import { revalidatePath } from "next/cache";
+import { upsertDailyReport } from "@/actions/report";
 
 const prisma = new PrismaClient();
 
@@ -135,7 +136,10 @@ export async function createOrderWithReceipt(
         receiptDate: receipt.receiptDate.toISOString(),
       },
     };
+    await upsertDailyReport(receipt.receiptDate, Number(receipt.grandTotal));
+
   } catch (e) {
+    
     console.error("createOrderWithReceipt error:", e);
     return { success: false, error: "บันทึกออร์เดอร์/ใบเสร็จไม่สำเร็จ" };
   }
