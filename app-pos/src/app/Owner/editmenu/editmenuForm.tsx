@@ -176,7 +176,7 @@ const EditMenuForm = ({ initialData, onUpdate }: EditMenuFormProps) => {
               {/* หมวดหมู่ (ไม่มีปุ่มเพิ่มหมวด) */}
               <div>
                 <label className="block text-sm font-medium">หมวดหมู่</label>
-                <div className="mt-2 grid grid-cols-2 gap-2">
+                <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                   {categoriesMaster.map((c) => {
                     const checked = (form.categories || []).includes(c.categoryID);
                     return (
@@ -211,7 +211,7 @@ const EditMenuForm = ({ initialData, onUpdate }: EditMenuFormProps) => {
                 <img
                   src={previewUrl || initialData.imageUrl || ""}
                   alt={initialData.menuName}
-                  className="w-24 h-24 object-cover rounded-md border"
+                  className="w-24 h-24 sm:w-28 sm:h-28 object-cover rounded-md border"
                 />
               </div>
 
@@ -242,3 +242,4 @@ const EditMenuForm = ({ initialData, onUpdate }: EditMenuFormProps) => {
 };
 
 export default EditMenuForm;
+

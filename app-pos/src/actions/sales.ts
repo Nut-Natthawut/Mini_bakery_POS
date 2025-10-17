@@ -1,10 +1,9 @@
 "use server";
 
-import { PrismaClient, Prisma, PaymentMethod, Role } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
+import { prisma } from "@/lib/prisma";
 import { upsertDailyReport } from "@/actions/report";
-
-const prisma = new PrismaClient();
 
 type PosItem = { menuID: string; qty: number; price: number };
 
@@ -12,86 +11,41 @@ export type CreateOrderPayload = {
   items: PosItem[];
   amountPaid: number;
   paymentMethod: "cash" | "qr";
-  userID?: string;              // <-- ทำให้เป็น optional
+  userID?: string;
   orderDescription?: string;
 };
 
-export type CreateOrderResult = {
+export type BillDetail = {
   orderID: string;
-  receiptID: string;
-  subtotal: number;
-  discountAmount: number;
-  taxAmount: number;
-  grandTotal: number;
-  amountPaid: number;
-  changeAmount: number;
-  receiptDate: string;
+  orderCode: string;
+  date: string;
+  items: { name: string; qty: number; price: number; total: number }[];
+  total: number;
 };
 
-/** ใช้/สร้างผู้ใช้สำหรับ POS อัตโนมัติ เมื่อไม่ได้ส่ง userID */
-// ⬅️ แก้ชนิดของ tx ให้ถูกต้อง
-async function resolvePosUserID(
-  tx: Prisma.TransactionClient,
-  explicitUserID?: string
-): Promise<string> {
-  if (explicitUserID) return explicitUserID;
-
-  const existing = await tx.user.findFirst({
-    where: { username: "pos" },
-    select: { userID: true },
-  });
-  if (existing) return existing.userID;
-
+// helper
+async function resolvePosUserID(tx: Prisma.TransactionClient, explicit?: string) {
+  if (explicit) return explicit;
+  const found = await tx.user.findFirst({ where: { username: "pos" }, select: { userID: true } });
+  if (found) return found.userID;
   const created = await tx.user.create({
-    data: {
-      username: "pos",
-      passwordHash: "!",
-      role: "Staff",         // หรือ Role.Staff ถ้าคุณ import enum มาแล้ว
-      fullName: "POS",
-    },
+    data: { username: "pos", passwordHash: "!", role: "Staff", fullName: "POS" },
     select: { userID: true },
   });
-
   return created.userID;
 }
 
-
-export async function createOrderWithReceipt(
-  payload: CreateOrderPayload
-): Promise<{ success: boolean; data?: CreateOrderResult; error?: string }> {
+export async function createOrderWithReceipt(payload: CreateOrderPayload) {
   try {
     const { items, amountPaid, paymentMethod, userID: maybeUserID, orderDescription } = payload;
+    if (!items?.length) return { success: false, error: "ไม่มีรายการสินค้า" };
 
-    if (!items || items.length === 0) {
-      return { success: false, error: "ไม่มีรายการสินค้า" };
-    }
-
-    const sys = await prisma.systemConfig.findFirst();
-    const taxRatePct = Number(sys?.taxRatePct ?? 0);
-    const defaultDiscountPct = Number(sys?.defaultDiscountPct ?? 0);
-
-    const subtotal = items.reduce((s, it) => s + it.price * it.qty, 0);
-    const discountAmount = (subtotal * defaultDiscountPct) / 100;
-    const taxable = subtotal - discountAmount;
-    const taxAmount = (taxable * taxRatePct) / 100;
-    const grandTotal = taxable + taxAmount;
-    const changeAmount = amountPaid - grandTotal;
-
-    if (amountPaid < grandTotal) {
-      return { success: false, error: "จำนวนเงินที่รับมาน้อยกว่ายอดชำระ" };
-    }
-
-    const d = (n: number) => new Prisma.Decimal(Number(n.toFixed(2)));
-
-    const { order, receipt } = await prisma.$transaction(async (tx) => {
-      const resolvedUserID = await resolvePosUserID(tx, maybeUserID);
-
+    const { orderID } = await prisma.$transaction(async (tx) => {
+      // 1️⃣ สร้างออร์เดอร์ + รายการ
+      const userID = await resolvePosUserID(tx, maybeUserID);
       const order = await tx.order.create({
-        data: {
-          orderDescription: orderDescription ?? null,
-          orderDateTime: new Date(),
-          userID: resolvedUserID,
-        },
+        data: { orderDescription: orderDescription ?? null, orderDateTime: new Date(), userID },
+        select: { orderID: true },
       });
 
       await tx.order_Menu.createMany({
@@ -102,76 +56,74 @@ export async function createOrderWithReceipt(
         })),
       });
 
-      const receipt = await tx.receipt.create({
-        data: {
-          orderID: order.orderID,
-          receiptDate: new Date(),
-          subtotal: d(subtotal),
-          discountAmount: d(discountAmount),
-          taxAmount: d(taxAmount),
-          grandTotal: d(grandTotal),
-          amountPaid: d(amountPaid),
-          changeAmount: d(changeAmount),
-          paymentMethod: paymentMethod === "cash" ? PaymentMethod.CASH : PaymentMethod.QR,
-        },
-      });
+      // 2️ เรียก SP ผ่าน transaction เดียวกัน (สำคัญมาก)
+      await tx.$executeRawUnsafe(`
+        CALL create_receipt_for_order('${order.orderID}'::uuid, ${amountPaid}, '${paymentMethod.toUpperCase()}');
+      `);
 
-      return { order, receipt };
+      return { orderID: order.orderID };
     });
 
+    // 3️ ดึงใบเสร็จจริง
+    const receipt = await prisma.receipt.findFirst({ where: { orderID } });
+    if (!receipt) return { success: false, error: "สร้างใบเสร็จไม่สำเร็จ" };
+
+    // 4️ อัปเดตรายงานรายวัน
+    await upsertDailyReport(receipt.receiptDate, Number(receipt.grandTotal));
+
+    // 5️ Revalidate หน้า
     revalidatePath("/Owner/sale");
     revalidatePath("/Owner/menu");
 
     return {
       success: true,
       data: {
-        orderID: order.orderID,
+        orderID,
         receiptID: receipt.receiptID,
-        subtotal,
-        discountAmount,
-        taxAmount,
-        grandTotal,
-        amountPaid,
-        changeAmount,
+        subtotal: Number(receipt.subtotal),
+        discountAmount: Number(receipt.discountAmount),
+        taxAmount: Number(receipt.taxAmount),
+        grandTotal: Number(receipt.grandTotal),
+        amountPaid: Number(receipt.amountPaid),
+        changeAmount: Number(receipt.changeAmount),
         receiptDate: receipt.receiptDate.toISOString(),
       },
     };
-    await upsertDailyReport(receipt.receiptDate, Number(receipt.grandTotal));
-
-  } catch (e) {
-    
+  } catch (e: any) {
     console.error("createOrderWithReceipt error:", e);
-    return { success: false, error: "บันทึกออร์เดอร์/ใบเสร็จไม่สำเร็จ" };
+    return { success: false, error: e.message || "บันทึกไม่สำเร็จ" };
   }
 }
 
-/* ---------- สำหรับหน้า Sales ---------- */
+// === รายการขายจาก Receipt ตรง ๆ ===
 export type SaleRow = {
   orderID: string;
-  orderCode: string;
+  orderCode: string;   // receiptID
   seller: string;
   itemsCount: number;
-  price: number;
-  date: string;
+  price: number;       // grandTotal
+  date: string;        // ISO
+  paymentMethod: "CASH" | "QR";
 };
 
-export async function listSales(): Promise<{ success: boolean; data?: SaleRow[]; error?: string }> {
+export async function listSales() {
   try {
-    const orders = await prisma.order.findMany({
-      orderBy: { orderDateTime: "desc" },
-      include: { user: true, receipt: true, orderMenus: true },
+    const receipts = await prisma.receipt.findMany({
+      orderBy: { receiptDate: "desc" },
+      include: {
+        order: { include: { user: true, orderMenus: true } },
+      },
     });
 
-    const rows: SaleRow[] = orders
-      .filter((o) => o.receipt)
-      .map((o) => ({
-        orderID: o.orderID,
-        orderCode: o.receipt!.receiptID,
-        seller: o.user?.fullName || o.user?.username || "-",
-        itemsCount: o.orderMenus.reduce((s, m) => s + m.quantity, 0),
-        price: Number(o.receipt!.grandTotal),
-        date: o.receipt!.receiptDate.toISOString(),
-      }));
+    const rows: SaleRow[] = receipts.map((r) => ({
+      orderID: r.orderID,
+      orderCode: r.receiptID,
+      seller: r.order?.user?.fullName || r.order?.user?.username || "POS",
+      itemsCount: r.order?.orderMenus.reduce((s, m) => s + m.quantity, 0) ?? 0,
+      price: Number(r.grandTotal),
+      date: r.receiptDate.toISOString(),
+      paymentMethod: r.paymentMethod as unknown as "CASH" | "QR",
+    }));
 
     return { success: true, data: rows };
   } catch (e) {
@@ -180,24 +132,13 @@ export async function listSales(): Promise<{ success: boolean; data?: SaleRow[];
   }
 }
 
-export type BillDetail = {
-  orderID: string;
-  orderCode: string;
-  date: string;
-  items: { name: string; qty: number; price: number; total: number }[];
-  total: number;
-};
-
 export async function getBillByOrderID(orderID: string) {
   try {
     const order = await prisma.order.findUnique({
       where: { orderID },
-      include: {
-        receipt: true,
-        orderMenus: { include: { menu: true } },
-      },
+      include: { receipt: true, orderMenus: { include: { menu: true } } },
     });
-    if (!order || !order.receipt) return { success: false, error: "ไม่พบบิลที่ต้องการ" };
+    if (!order?.receipt) return { success: false, error: "ไม่พบบิลที่ต้องการ" };
 
     const items = order.orderMenus.map((om) => {
       const price = Number(om.menu.price);

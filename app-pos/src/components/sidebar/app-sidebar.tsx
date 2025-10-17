@@ -79,6 +79,12 @@ const items = [
     icon: BadgeDollarSign,
   },
   {
+    title: "Report",
+    path: "/Owner/report",
+    showFor: ["Owner"],
+    icon: ChartBarStacked,
+  },
+  {
     title: "Employees",
     path: "/Owner/employee",
     showFor: ["Owner"],

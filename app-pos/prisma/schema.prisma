@@ -105,6 +105,8 @@ model Report {
   numberOfOrders Int
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+
+  @@unique([reportDate, reportType], name: "uniq_report_date_type")
 }
 
 enum Role {
