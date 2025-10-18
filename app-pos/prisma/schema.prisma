@@ -20,7 +20,7 @@ model User {
 }
 
 model SystemConfig {
-  configID           String  @id @default(cuid())
+  configID String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   taxRatePct         Decimal @default(0.00) @db.Decimal(5, 2)
   defaultDiscountPct Decimal @default(0.00) @db.Decimal(5, 2)
   currency           String  @default("THB")

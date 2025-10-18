@@ -383,6 +383,18 @@ const filtered = useMemo(() => {
                     ))}
                   </td>
                 </tr>
+                {typeof bill.discount === 'number' && (
+                  <tr>
+                    <td className="border-t border-gray-300 py-2">ส่วนลด</td>
+                    <td className="border-t border-gray-300 py-2 text-right">- {fmt(bill.discount)}</td>
+                  </tr>
+                )}
+                {typeof bill.vat === 'number' && (
+                  <tr>
+                    <td className="py-1">VAT</td>
+                    <td className="py-1 text-right">{fmt(bill.vat)}</td>
+                  </tr>
+                )}
                 <tr>
                   <td className="border-t border-gray-300 py-2 font-semibold">รวม</td>
                   <td className="border-t border-gray-300 py-2 text-right font-semibold">{fmt(bill.total)}</td>
