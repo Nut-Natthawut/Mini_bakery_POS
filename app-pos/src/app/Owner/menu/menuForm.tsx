@@ -391,11 +391,11 @@ export default function MenuForm() {
             {cart.map((line, idx) => (
               <div
                 key={line.id}
-                className="grid grid-cols-6 gap-2 p-2 border-b last:border-b-0 text-sm items-center"
+                className="grid grid-cols-6 gap-1 p-2 border-b last:border-b-0 text-sm items-center"
               >
                 <div>{idx + 1}</div>
                 <div className="col-span-2 truncate">{line.name}</div>
-                <div>฿ {fmt(line.price)}</div>
+                <div className="text-[12.4px]" >฿ {fmt(line.price)}</div>
                 <div className="flex items-center gap-1">
                   <button
                     className="w-5 h-5 flex items-center justify-center text-gray-500 hover:text-red-500 disabled:opacity-50"
