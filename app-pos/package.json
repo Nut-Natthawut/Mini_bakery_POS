@@ -34,6 +34,8 @@
     "lucide-react": "^0.541.0",
     "next": "^14.2.32",
     "next-auth": "^4.24.11",
+    "promptpay-qr": "^0.5.0",
+    "qrcode": "^1.5.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-hook-form": "^7.65.0",
@@ -48,6 +50,7 @@
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",
     "@types/node": "^20",
+    "@types/qrcode": "^1.5.5",
     "@types/react": "^18.3.24",
     "@types/react-dom": "^18.3.7",
     "autoprefixer": "^10.4.21",

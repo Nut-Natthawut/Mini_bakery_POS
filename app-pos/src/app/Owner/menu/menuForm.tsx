@@ -13,6 +13,11 @@ import { getSystemConfig } from "@/actions/systemConfig";
 import { createOrderWithReceipt } from "@/actions/sales";
 import type { MenuData, CategoryData } from "@/types/type";
 
+import generatePromptPay from "promptpay-qr";
+import QRCode from "qrcode";
+
+const PROMPTPAY_ID = "0622812753"; // ← เบอร์พร้อมเพย์ของคุณ
+
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
 const fmt = (n: number) =>
@@ -20,6 +25,7 @@ const fmt = (n: number) =>
     Number(n || 0)
   );
 
+/** คำนวณราคาต่อหน่วยหลังส่วนลด (รองรับ THB/% และ default discount จากระบบ) */
 const calcFinalUnit = (
   price: number,
   discountType?: "THB" | "%",
@@ -38,6 +44,7 @@ const calcFinalUnit = (
     unit = base - Math.max(0, raw);
   }
 
+  // ถ้ารายการไม่มีส่วนลด ให้ใช้ defaultDiscountPct ของระบบ
   if ((unit === base || unit >= base) && defaultPct > 0) {
     unit = base * (1 - defaultPct / 100);
   }
@@ -48,8 +55,8 @@ const calcFinalUnit = (
 type CartItem = {
   id: string;
   name: string;
-  price: number;
-  basePrice: number;
+  price: number;     // ราคาต่อหน่วยหลังลด
+  basePrice: number; // ราคาต่อหน่วยก่อนลด
   qty: number;
   image?: string | null;
 };
@@ -72,8 +79,13 @@ export default function MenuForm() {
   const [method, setMethod] = useState<"cash" | "qr">("cash");
   const [paid, setPaid] = useState(0);
 
+  // config จากระบบ
   const [taxPct, setTaxPct] = useState<number>(7);
   const [defaultDiscountPct, setDefaultDiscountPct] = useState<number>(0);
+
+  // QR PromptPay
+  const [qrUrl, setQrUrl] = useState<string>("");
+  const [qrMaking, setQrMaking] = useState(false);
 
   const [thanks, setThanks] = useState<{
     total: number;
@@ -107,6 +119,7 @@ export default function MenuForm() {
     })();
   }, []);
 
+  // ถ้า default discount/เมนูเปลี่ยน → ปรับราคาในตะกร้า
   useEffect(() => {
     if (!menuItems.length) return;
     setCart((prev) =>
@@ -125,11 +138,29 @@ export default function MenuForm() {
     );
   }, [defaultDiscountPct, menuItems]);
 
+  // ==== สร้าง QR PromptPay ตามยอดปัจจุบัน ====
+  async function buildPromptPayQR(amount: number) {
+    try {
+      setQrMaking(true);
+      const payload = generatePromptPay(PROMPTPAY_ID, { amount: Number(amount || 0) });
+      const url = await QRCode.toDataURL(payload, { margin: 1, scale: 6 });
+      setQrUrl(url);
+    } catch {
+      setQrUrl("");
+    } finally {
+      setQrMaking(false);
+    }
+  }
+  useEffect(() => {
+    if (payOpen && method === "qr") buildPromptPayQR(grandTotal);
+  }, [payOpen, method, /* regenerate เมื่อยอดเปลี่ยน */ menuItems, cart]);
+
   const visible = useMemo(() => {
     if (activeCat === "all") return menuItems;
     return menuItems.filter((m) => (m.categories || []).includes(activeCat));
   }, [menuItems, activeCat]);
 
+  // Totals
   const beforeDiscountSubtotal = useMemo(
     () => round2(cart.reduce((sum, line) => sum + round2(line.basePrice) * line.qty, 0)),
     [cart]
@@ -242,6 +273,7 @@ export default function MenuForm() {
     <div className="min-h-screen bg-[#FFFDE4]">
       <div className="flex">
         <main className="flex-1 p-4 sm:p-6 lg:pr-[380px]">
+          {/* หมวดหมู่ */}
           <div className="container mx-auto flex h-14 items-center gap-2 overflow-x-auto">
             <ToggleGroup
               type="single"
@@ -269,6 +301,7 @@ export default function MenuForm() {
             </ToggleGroup>
           </div>
 
+          {/* เมนู */}
           <div className="grid gap-5 grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 auto-rows-fr px-1 sm:px-2 mt-3">
             {loading ? (
               <div className="col-span-full flex items-center justify-center h-64 text-gray-500">
@@ -342,6 +375,7 @@ export default function MenuForm() {
           </div>
         </main>
 
+        {/* ตะกร้า */}
         <aside className="fixed top-0 right-0 h-screen w-[360px] bg-white rounded-l-2xl shadow-xl p-4 flex flex-col border-l border-[#eadfce]">
           <div className="bg-[#F7F3EF] rounded-lg shadow-sm mb-3">
             <div className="grid grid-cols-6 gap-2 p-2 text-sm font-semibold">
@@ -439,6 +473,7 @@ export default function MenuForm() {
         </aside>
       </div>
 
+      {/* MODAL: เลือกจำนวน */}
       {qtyOpen && selected && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="w-[400px] max-w-[90vw] rounded-2xl bg-white p-6 shadow-xl">
@@ -498,6 +533,7 @@ export default function MenuForm() {
         </div>
       )}
 
+      {/* MODAL: ชำระเงิน */}
       {payOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="w-[420px] max-w-[90vw] rounded-2xl bg-white p-6 shadow-xl">
@@ -571,23 +607,55 @@ export default function MenuForm() {
                 </div>
               </>
             ) : (
-              <div className="flex flex-col items-center gap-3">
-                <p>ยอดชำระ: ฿ {fmt(grandTotal)}</p>
-                <div className="w-40 h-40 rounded-lg bg-gray-200 flex items-center justify-center text-sm text-gray-500">
-                  QR CODE
+              <div className="flex flex-col items-center">
+                <p className="mb-2">ยอดชำระ : ฿ {fmt(grandTotal)}</p>
+
+                <div className="mb-3">
+                  {qrMaking ? (
+                    <div className="w-40 h-40 bg-gray-200 rounded-lg flex items-center justify-center">
+                      กำลังสร้าง…
+                    </div>
+                  ) : qrUrl ? (
+                    <img src={qrUrl} alt={`PromptPay ${PROMPTPAY_ID}`} className="w-40 h-40 rounded-lg border" />
+                  ) : (
+                    <div className="w-40 h-40 bg-gray-200 rounded-lg flex items-center justify-center">
+                      ไม่มี QR
+                    </div>
+                  )}
                 </div>
-                <button
-                  className="rounded-md bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
-                  onClick={confirmPay}
-                >
-                  เสร็จสิ้น
-                </button>
+
+                <div className="flex gap-2">
+                  <button
+                    className="rounded-md bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
+                    onClick={confirmPay}
+                  >
+                    เสร็จสิ้น
+                  </button>
+                  <button
+                    className="px-3 py-2 rounded-md border"
+                    onClick={() => buildPromptPayQR(grandTotal)}
+                    title="สร้าง QR ใหม่"
+                  >
+                    สร้าง QR ใหม่
+                  </button>
+                </div>
+
+                {qrUrl && (
+                  <a
+                    href={qrUrl}
+                    download={`promptpay_${grandTotal.toFixed(2)}.png`}
+                    className="mt-2 text-sm underline text-gray-600"
+                  >
+                    ดาวน์โหลด QR
+                  </a>
+                )}
               </div>
             )}
           </div>
         </div>
       )}
 
+      {/* MODAL: ขอบคุณ */}
       {thanks && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="w-[460px] max-w-[92vw] rounded-2xl bg-white p-6 shadow-2xl text-center">
@@ -637,4 +705,3 @@ export default function MenuForm() {
     </div>
   );
 }
-
