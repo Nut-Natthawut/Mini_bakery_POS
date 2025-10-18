@@ -34,19 +34,39 @@ AS $$
 DECLARE
   v_subtotal NUMERIC(12,2);
   v_discount NUMERIC(12,2);
+  v_discount_menu NUMERIC(12,2);
   v_tax NUMERIC(12,2);
   v_grandtotal NUMERIC(12,2);
-  v_config RECORD;
+  v_default_pct NUMERIC(6,3) := 0;
+  v_tax_pct NUMERIC(6,3) := 0;
 BEGIN
   -- ป้องกันออกใบซ้ำ
   PERFORM pg_advisory_xact_lock(hashtext(p_order_id::text));
 
-  -- โหลด config
-  SELECT * INTO v_config FROM "SystemConfig" LIMIT 1;
+  -- โหลด config (fallback เป็น 0 ถ้าไม่มี)
+  SELECT
+    COALESCE("defaultDiscountPct", 0),
+    COALESCE("taxRatePct", 0)
+  INTO v_default_pct, v_tax_pct
+  FROM "SystemConfig"
+  LIMIT 1;
+
+  v_default_pct := LEAST(GREATEST(v_default_pct, 0), 100);
+  v_tax_pct := GREATEST(v_tax_pct, 0);
 
   -- เทียบ UUID กับ UUID ตรง ๆ (ไม่มี ::text)
-  SELECT SUM(m."price" * om."quantity")
-  INTO v_subtotal
+  SELECT
+    SUM(m."price" * om."quantity") AS subtotal_raw,
+    SUM(
+      CASE
+        WHEN UPPER(COALESCE(m."discountType", '')) = '%'
+          THEN (m."price" * om."quantity") * LEAST(GREATEST(m."discountValue", 0), 100) / 100
+        WHEN UPPER(COALESCE(m."discountType", '')) = 'THB'
+          THEN LEAST(m."price" * om."quantity", GREATEST(m."discountValue", 0) * om."quantity")
+        ELSE 0
+      END
+    ) AS discount_from_menu
+  INTO v_subtotal, v_discount_menu
   FROM "Order_Menu" om
   JOIN "Menu" m ON m."menuID" = om."menuID"
   WHERE om."orderID"::uuid = p_order_id;
@@ -55,9 +75,20 @@ BEGIN
     RAISE EXCEPTION 'Order % has no items in Order_Menu', p_order_id;
   END IF;
 
-  -- คำนวณส่วนลด / ภาษี / ยอดรวม
-  v_discount := COALESCE(v_subtotal * (v_config."defaultDiscountPct"/100), 0);
-  v_tax := COALESCE((v_subtotal - v_discount) * (v_config."taxRatePct"/100), 0);
+  v_discount := COALESCE(v_discount_menu, 0);
+
+  -- ถ้ายังไม่มีส่วนลดจากเมนู ใช้ defaultDiscountPct เป็น fallback
+  IF (v_discount IS NULL OR v_discount = 0) AND v_default_pct > 0 THEN
+    v_discount := v_subtotal * (v_default_pct/100);
+  END IF;
+
+  -- กันค่าผิดปกติ
+  IF v_discount > v_subtotal THEN
+    v_discount := v_subtotal;
+  END IF;
+
+  -- คำนวณภาษีจากยอดหลังหักส่วนลด
+  v_tax := COALESCE((v_subtotal - v_discount) * (v_tax_pct/100), 0);
   v_grandtotal := v_subtotal - v_discount + v_tax;
 
   -- ตรวจสอบยอดชำระ
@@ -115,7 +146,7 @@ BEGIN
   SELECT SUM("grandTotal"), COUNT(*)
   INTO v_total, v_count
   FROM "Receipt"
-  WHERE "receiptDate"::date = p_day;  
+  WHERE ("receiptDate" AT TIME ZONE 'Asia/Bangkok')::date = p_day;
 
   INSERT INTO "Report" (
     "reportID", "reportDate", "reportType",
@@ -147,5 +178,5 @@ $$ LANGUAGE plpgsql;
 SELECT cron.schedule(
   'mini_pos_daily_report',
   '5 19 * * *',
-  $$ SELECT rollup_daily_sales((CURRENT_DATE - INTERVAL '1 day')::date); $$
+  $$ SELECT rollup_daily_sales(((now() AT TIME ZONE 'Asia/Bangkok')::date - 1)); $$
 );
