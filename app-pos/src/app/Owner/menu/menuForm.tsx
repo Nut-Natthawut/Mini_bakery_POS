@@ -16,6 +16,15 @@ const fmt = (n: number) =>
     Number(n || 0)
   );
 
+
+const calcFinal = (price: number, t?: "THB" | "%", v?: number) => {
+  const type = t ?? "THB";
+  const val = Number(v ?? 0);
+  return type === "%"
+    ? Math.max(0, Number(price) * (1 - val / 100))
+    : Math.max(0, Number(price) - val);
+};
+
 type CartItem = { id: string; name: string; price: number; qty: number; image?: string };
 
 /** มีหรือไม่มีก็ได้ — ถ้าไม่ส่ง server จะหา/สร้าง POS user ให้เอง */
@@ -23,7 +32,7 @@ const ENV_POS_USER = process.env.NEXT_PUBLIC_POS_USER_ID;
 
 export default function MenuForm() {
   const [menuItems, setMenuItems] = useState<MenuData[]>([]);
-  const [categories, setCategories] = useState<CategoryData[]>([]);
+  const [categories, setCategories] = useState<CategoryData[]>([]); 
   const [activeCat, setActiveCat] = useState("all");
   const [loading, setLoading] = useState(true);
 
@@ -221,7 +230,21 @@ export default function MenuForm() {
                   </CardHeader>
 
                   <CardFooter className="px-4 pb-4 pt-0 mt-auto">
-                    <p className="text-[#111] font-semibold text-[16px]">฿ {fmt(Number(m.price))}</p>
+                    <p className="text-[16px] font-semibold">
+                        {m.discountValue && Number(m.discountValue) > 0 ? (
+                          <>
+                            <span className="line-through text-gray-400 mr-1">฿ {fmt(Number(m.price))}</span>
+                            <span className="text-[#198754]">
+                              ฿ {fmt(
+                                calcFinal(Number(m.price), m.discountType as any, Number(m.discountValue))
+                              )}
+                           </span>
+                         </>
+                      ) : (
+                        <span className="text-[#111]">฿ {fmt(Number(m.price))}</span>
+                      )}
+                    </p>
+
                   </CardFooter>
                 </Card>
               ))

@@ -38,6 +38,10 @@ model Menu {
   menuID     String          @id @default(uuid())
   menuName   String
   price      Decimal         @db.Decimal(10, 2)
+
+  discountType  String          @default("THB") // "THB" หรือ "%"
+  discountValue Decimal         @default(0)     @db.Decimal(10, 2)
+  
   menuDetail String?
   imageUrl   String?
   createdAt  DateTime        @default(now())

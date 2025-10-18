@@ -7,6 +7,8 @@ export interface MenuData {
   categories?: string[];
   createdAt?: string;
   updatedAt?: string;
+  discountType?: "THB" | "%";
+  discountValue?: number;
 }
 
 export interface MenuFormData {
