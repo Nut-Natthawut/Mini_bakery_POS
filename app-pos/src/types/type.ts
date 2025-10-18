@@ -60,3 +60,12 @@ export interface ReceiptData {
 }
 export type Role = "Owner" | "Staff";
 export type UIUser = { id: string; username: string; fullName: string; role: Role; createdAt?: string };
+
+export interface SystemConfigData {
+  configID: string;
+  taxRatePct: number;          // เช่น 7.00
+  defaultDiscountPct: number;  // เช่น 0.00
+  currency: string;            // เช่น "THB"
+  createdAt?: string;
+  updatedAt?: string;
+}

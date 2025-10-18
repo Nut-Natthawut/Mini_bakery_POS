@@ -2,12 +2,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use server";
 
-import { PrismaClient } from "@prisma/client";
+import prisma from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import type { ApiResponse, MenuData } from "@/types/type";
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
-
-const prisma = new PrismaClient();
 
 // ปรับ path ให้ตรงกับหน้า UI ของคุณ
 const REVALIDATE_MENU_PATH = "/Owner/menu";
@@ -20,6 +18,9 @@ function serializeMenu(m: any): MenuData {
     ? m.categories.map((mc: any) => mc.categoryID)
     : [];
 
+  // หมายเหตุ: เพิ่ม discountType/discountValue ให้ UI ใช้งาน
+  // ถ้า type ของคุณยังไม่มี 2 ฟิลด์นี้ TypeScript อาจเตือนได้
+  // แต่ในทางปฏิบัติ UI จะรับค่าได้ปกติ
   return {
     menuID: m.menuID,
     menuName: m.menuName,
@@ -29,7 +30,13 @@ function serializeMenu(m: any): MenuData {
     categories: cats,
     createdAt: m.createdAt ? new Date(m.createdAt).toISOString() : undefined,
     updatedAt: m.updatedAt ? new Date(m.updatedAt).toISOString() : undefined,
-  };
+
+    // เพิ่มฟิลด์ส่วนลด
+
+    discountType: (m.discountType as "THB" | "%") ?? "THB",
+    
+    discountValue: Number(m.discountValue ?? 0),
+  } as MenuData;
 }
 
 // อ่าน categories จาก FormData: รองรับทั้ง JSON ("categories") และหลายคีย์ ("categories[]")
@@ -54,14 +61,14 @@ async function uploadImageAndGetUrl(file: File | null, current?: string | null) 
   }
 
   // สร้างชื่อไฟล์ปลอดภัยด้วย UUID + นามสกุลที่เป็นตัวอักษร/ตัวเลขเท่านั้น
-  const rawExt = (file.name?.split('.')?.pop() || '').toLowerCase();
-  const safeExt = /^[a-z0-9]{1,5}$/.test(rawExt) ? rawExt : 'png';
+  const rawExt = (file.name?.split(".")?.pop() || "").toLowerCase();
+  const safeExt = /^[a-z0-9]{1,5}$/.test(rawExt) ? rawExt : "png";
   const fileName = `${crypto.randomUUID()}.${safeExt}`;
 
   // แปลงเป็น Buffer เพื่ออัปโหลดจากฝั่ง server action
   const buffer = Buffer.from(await file.arrayBuffer());
 
-  //  Upload to Supabase Storage
+  // Upload to Supabase Storage
   const supa = createSupabaseServerClient();
   const { error } = await supa.storage
     .from("menu") // bucket
@@ -76,10 +83,8 @@ async function uploadImageAndGetUrl(file: File | null, current?: string | null) 
     throw new Error("อัปโหลดรูปภาพไม่สำเร็จ");
   }
 
-  //  ได้ public URL กลับมา
-  const { data: urlData } = await supa.storage
-    .from("menu")
-    .getPublicUrl(`menus/${fileName}`);
+  // ได้ public URL กลับมา
+  const { data: urlData } = await supa.storage.from("menu").getPublicUrl(`menus/${fileName}`);
 
   return urlData.publicUrl;
 }
@@ -233,3 +238,47 @@ export async function deleteMenu(menuID: string): Promise<ApiResponse<{ message:
   }
 }
 
+/* -------------------- NEW: อัปเดตส่วนลดหลายเมนู -------------------- */
+
+// ใช้จากหน้า discoutmanage.tsx ตอนกด "บันทึกส่วนลด"
+export async function updateDiscounts(rows: Array<{
+  menuID: string;
+  discountType: "THB" | "%";
+  discountValue: number;
+}>) {
+  try {
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return { success: false, error: "ไม่พบรายการอัปเดต" };
+    }
+
+    // กันค่าผิดปกติ (เช่น % > 100 หรือค่าติดลบ)
+    const sanitized = rows.map((r) => ({
+      ...r,
+      discountValue:
+        r.discountType === "%"
+          ? Math.min(Math.max(Number(r.discountValue || 0), 0), 100)
+          : Math.max(Number(r.discountValue || 0), 0),
+    }));
+
+    await prisma.$transaction(
+      sanitized.map((r) =>
+        prisma.menu.update({
+          where: { menuID: r.menuID },
+          data: {
+            discountType: r.discountType,
+            discountValue: r.discountValue,
+          },
+        })
+      )
+    );
+
+    // ให้หน้าเมนูและหน้าตั้งค่าส่วนลดดึงข้อมูลใหม่
+    revalidatePath("/Owner/menu");
+    revalidatePath("/Owner/tax_discount");
+
+    return { success: true, updated: sanitized.length };
+  } catch (e: any) {
+    console.error("updateDiscounts error:", e);
+    return { success: false, error: e?.message || "Update failed" };
+  }
+}

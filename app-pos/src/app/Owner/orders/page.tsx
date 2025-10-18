@@ -6,16 +6,60 @@ import { Download, Info, Printer, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { listOrders, getOrderDetail, voidPendingOrder } from "@/actions/orders";
-import type { OrderRow, OrderDetail, OrderStatus } from "@/actions/orders";
+import type { OrderRow, OrderDetail, OrderStatus, OrderItemLine } from "@/actions/orders";
 
+/* ========= helpers ========= */
+const fmt = (n: number) =>
+  new Intl.NumberFormat("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(
+    Number(n || 0)
+  );
+
+const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+
+type OrderItemLineView = OrderItemLine & { finalLineTotal?: number };
+
+function getLineTotal(it: OrderItemLine): number {
+  const v = (it as OrderItemLineView).finalLineTotal;
+  return typeof v === "number" ? v : it.total;
+}
+
+// เติมส่วนลดและ VAT 7% ให้เสมอ หาก server ไม่ส่งมา
+const TAX_RATE = 0.07;
+function enrichDetail(raw: OrderDetail): OrderDetail {
+  const already =
+    typeof raw.discountAmount === "number" &&
+    typeof raw.taxAmount === "number" &&
+    typeof raw.grandTotal === "number";
+
+  if (already) return raw;
+
+  const subtotal = Number(raw.subtotal || 0);
+  const afterSubtotal = (raw.items || []).reduce((s, it) => s + getLineTotal(it), 0);
+
+  const calculatedDiscount =
+    afterSubtotal > 0 ? Math.max(0, round2(subtotal - afterSubtotal)) : 0;
+
+  const base = afterSubtotal > 0 ? afterSubtotal : subtotal;
+  const vat = round2(base * TAX_RATE);
+  const grand = round2(base + vat);
+
+  return {
+    ...raw,
+    discountAmount: typeof raw.discountAmount === "number" ? raw.discountAmount : calculatedDiscount,
+    taxAmount: typeof raw.taxAmount === "number" ? raw.taxAmount : vat,
+    grandTotal: typeof raw.grandTotal === "number" ? raw.grandTotal : grand,
+  };
+}
+
+/* ========= Page Component (default export เดียว) ========= */
 export default function OrdersPage() {
   const [rows, setRows] = useState<OrderRow[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // filters
-  const [status, setStatus] = useState<OrderStatus | "ALL">("ALL");
-  const [from, setFrom] = useState<string>("");
-  const [to, setTo] = useState<string>("");
+  // filters (อนาคตเผื่อใช้)
+  const [status] = useState<OrderStatus | "ALL">("ALL");
+  const [from] = useState<string>("");
+  const [to] = useState<string>("");
 
   // modals
   const [detail, setDetail] = useState<OrderDetail | null>(null);
@@ -29,11 +73,8 @@ export default function OrdersPage() {
         from: from || undefined,
         to: to || undefined,
       });
-      if (res.success && res.data) {
-        setRows(res.data);
-      } else {
-        toast.error(res.error || "โหลดรายการออเดอร์ไม่สำเร็จ");
-      }
+      if (res.success && res.data) setRows(res.data);
+      else toast.error(res.error || "โหลดรายการออเดอร์ไม่สำเร็จ");
     } catch (e: any) {
       toast.error(e.message || "เกิดข้อผิดพลาด");
     } finally {
@@ -50,7 +91,7 @@ export default function OrdersPage() {
     try {
       const res = await getOrderDetail(orderID);
       if (!res.success || !res.data) throw new Error(res.error || "ไม่พบรายละเอียดออเดอร์");
-      setDetail(res.data);
+      setDetail(enrichDetail(res.data));
     } catch (e: any) {
       toast.error(e.message || "เปิดรายละเอียดไม่สำเร็จ");
     }
@@ -70,7 +111,16 @@ export default function OrdersPage() {
   };
 
   const handleExport = () => {
-    const header = ["No", "OrderID", "ReceiptID", "Datetime", "Seller", "Items", "Total", "Status"];
+    const header = [
+      "No",
+      "OrderID",
+      "ReceiptID",
+      "Datetime",
+      "Seller",
+      "Items",
+      "Total (incl. VAT)",
+      "Status",
+    ];
     const body = rows.map((r, i) => [
       (i + 1).toString(),
       r.orderID,
@@ -81,7 +131,6 @@ export default function OrdersPage() {
       r.total.toFixed(2),
       r.status,
     ]);
-
     const csv = [header, ...body]
       .map((arr) => arr.map((v) => `"${v}"`).join(","))
       .join("\n");
@@ -100,50 +149,6 @@ export default function OrdersPage() {
   return (
     <div className="min-h-screen bg-[#FFFCE8]">
       <div className="w-full px-6 py-6">
-        {/* Header + Filters */}
-        {/* <div className="flex flex-wrap items-end gap-3">
-  <div className="flex flex-col">
-    <label className="text-xs text-[#7A4E1A]">สถานะ</label>
-    <select
-      className="h-9 rounded-md border px-2"
-      value={status}
-      onChange={(e) => setStatus(e.target.value as OrderStatus | "ALL")}
-    >
-      <option value="ALL">ทั้งหมด</option>
-      <option value="PENDING">รอชำระ</option>
-      <option value="PAID">ชำระแล้ว</option>
-    </select>
-  </div>
-
-  <div className="flex flex-col">
-    <label className="text-xs text-[#7A4E1A]">จาก</label>
-    <input
-      type="datetime-local"
-      className="h-9 rounded-md border px-2"
-      value={from}
-      onChange={(e) => setFrom(e.target.value)}
-    />
-  </div>
-
-  <div className="flex flex-col">
-    <label className="text-xs text-[#7A4E1A]">ถึง</label>
-    <input
-      type="datetime-local"
-      className="h-9 rounded-md border px-2"
-      value={to}
-      onChange={(e) => setTo(e.target.value)}
-    />
-  </div>
-
-  <button
-    type="button"
-    onClick={reload}
-    className="h-9 rounded-md bg-[#8B4513] px-4 text-sm font-semibold text-white hover:bg-[#6f3710]"
-  >
-    ค้นหา
-  </button>
-</div> */}
-
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-[20px] font-semibold text-[#7A4E1A]">รายการออเดอร์</h2>
           <div className="flex items-center gap-2">
@@ -175,7 +180,7 @@ export default function OrdersPage() {
                 <th className="px-3 text-left">OrderID / เวลา</th>
                 <th className="px-3 text-left">ReceiptID</th>
                 <th className="px-3 text-left">รายการ</th>
-                <th className="px-3 text-left">ยอด</th>
+                <th className="px-3 text-left">ยอด (รวม VAT)</th>
                 <th className="px-3 text-left">สถานะ</th>
                 <th className="px-3 text-center">การจัดการ</th>
               </tr>
@@ -253,7 +258,7 @@ export default function OrdersPage() {
       {/* Modal: รายละเอียดออเดอร์ */}
       {detail && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-[1px]">
-          <div className="w-[460px] rounded-lg bg-white p-5 shadow-xl">
+          <div className="w-[480px] rounded-lg bg-white p-5 shadow-xl">
             <h3 className="mb-1 text-center text-lg font-semibold">รายละเอียดออเดอร์</h3>
             <div className="mb-2 text-center text-xs text-gray-500">
               {new Date(detail.orderDateTime).toLocaleString("th-TH")}
@@ -270,38 +275,47 @@ export default function OrdersPage() {
                 <span>รายการ</span>
                 <span>ราคา</span>
               </div>
-              {detail.items.map((it, idx) => (
-                <div key={idx} className="flex items-center justify-between py-1 text-sm">
-                  <span>
-                    {it.name} x{it.qty}
-                  </span>
-                  <span>{it.total.toFixed(2)}</span>
-                </div>
-              ))}
+
+              {detail.items.map((it, idx) => {
+                const line = getLineTotal(it);
+                return (
+                  <div key={idx} className="flex items-center justify-between py-1 text-sm">
+                    <span>
+                      {it.name} x{it.qty}
+                    </span>
+                    <span>{fmt(line)}</span>
+                  </div>
+                );
+              })}
             </div>
 
             <div className="space-y-1 text-sm">
               <div className="flex justify-between">
-                <span>ยอดสินค้า</span>
-                <span className="font-semibold">{detail.subtotal.toFixed(2)}</span>
+                <span>ยอดสินค้า (ก่อนลด)</span>
+                <span className="font-semibold">{fmt(detail.subtotal)}</span>
+              </div>
+
+              <div className="flex justify-between">
+                <span>ส่วนลด</span>
+                <span>{fmt(detail.discountAmount ?? 0)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>VAT (7%)</span>
+                <span>{fmt(detail.taxAmount ?? 0)}</span>
+              </div>
+
+              <div className="flex justify-between text-base">
+                <span>ยอดสุทธิ</span>
+                <span className="font-semibold">
+                  {fmt(
+                    detail.grandTotal ??
+                      detail.subtotal - (detail.discountAmount ?? 0) + (detail.taxAmount ?? 0)
+                  )}
+                </span>
               </div>
 
               {detail.status === "PAID" && (
                 <>
-                  <div className="flex justify-between">
-                    <span>ส่วนลด</span>
-                    <span>{(detail.discountAmount ?? 0).toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>ภาษี</span>
-                    <span>{(detail.taxAmount ?? 0).toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between text-base">
-                    <span>ยอดสุทธิ</span>
-                    <span className="font-semibold">
-                      {(detail.grandTotal ?? detail.subtotal).toFixed(2)}
-                    </span>
-                  </div>
                   <div className="flex justify-between">
                     <span>ชำระโดย</span>
                     <span className="font-semibold">
@@ -310,11 +324,11 @@ export default function OrdersPage() {
                   </div>
                   <div className="flex justify-between">
                     <span>รับเงิน</span>
-                    <span>{(detail.amountPaid ?? 0).toFixed(2)}</span>
+                    <span>{fmt(detail.amountPaid ?? 0)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>เงินทอน</span>
-                    <span>{(detail.changeAmount ?? 0).toFixed(2)}</span>
+                    <span>{fmt(detail.changeAmount ?? 0)}</span>
                   </div>
                 </>
               )}
@@ -329,15 +343,16 @@ export default function OrdersPage() {
                 ปิด
               </button>
 
-              {detail.status === "PAID" && (
-                <button
-                  type="button"
-                  onClick={() => window.print()}
-                  className="rounded-md bg-blue-500 px-4 py-1.5 text-sm text-white hover:bg-blue-600"
-                >
-                  พิมพ์
-                </button>
-              )}
+            {detail.status === "PAID" && (
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="rounded-md bg-blue-500 px-4 py-1.5 text-sm text-white hover:bg-blue-600"
+              >
+                <Printer className="mr-1 inline-block h-4 w-4" />
+                พิมพ์
+              </button>
+            )}
             </div>
           </div>
         </div>
