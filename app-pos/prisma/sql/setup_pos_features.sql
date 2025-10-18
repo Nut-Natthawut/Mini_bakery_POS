@@ -115,7 +115,7 @@ BEGIN
   SELECT SUM("grandTotal"), COUNT(*)
   INTO v_total, v_count
   FROM "Receipt"
-  WHERE ("receiptDate" AT TIME ZONE 'Asia/Bangkok')::date = p_day;
+  WHERE "receiptDate"::date = p_day;  
 
   INSERT INTO "Report" (
     "reportID", "reportDate", "reportType",
@@ -130,19 +130,21 @@ BEGIN
     now(),
     now()
   )
-  ON CONFLICT ON CONSTRAINT "uniq_report_date_type"
+  ON CONFLICT ("reportDate","reportType")
   DO UPDATE SET
     "totalSales" = EXCLUDED."totalSales",
     "numberOfOrders" = EXCLUDED."numberOfOrders",
     "updatedAt" = now();
+
+  RAISE NOTICE 'Report generated for % (Thai time)', p_day;
 END;
 $$ LANGUAGE plpgsql;
 
 -- =========================================================
--- pg_cron Schedule: mini_pos_daily_report (run 2:00 AM)
+-- pg_cron Schedule: mini_pos_daily_report (run 2:05 AM)
 -- =========================================================
 SELECT cron.schedule(
   'mini_pos_daily_report',
   '5 19 * * *',
-  $$ SELECT rollup_daily_sales(((now() AT TIME ZONE 'Asia/Bangkok')::date - 1)); $$
+  $$ SELECT rollup_daily_sales((CURRENT_DATE - INTERVAL '1 day')::date); $$
 );
