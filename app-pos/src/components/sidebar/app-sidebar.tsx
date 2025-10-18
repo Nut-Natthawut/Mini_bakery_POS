@@ -11,7 +11,9 @@ import {
   IdCardLanyard,
   TicketPercent,
   Dessert,
-  ReceiptText,          // ใช้เป็นไอคอน Orders/Receipts
+  ReceiptText,    
+  FileCheck,
+  ChartNoAxesCombined      // ใช้เป็นไอคอน Orders/Receipts
 } from "lucide-react";
 
 import {
@@ -70,7 +72,7 @@ const items = [
     title: "Receipts",            // ⬅️ เมนูใหม่: ไปหน้าใบเสร็จ
     path: "/Owner/receipt",       // แนะนำทำหน้า index ที่ /Owner/receipt เป็นหน้าค้นหา/กรอกเลขบิล
     showFor: ["Owner"],           // จะเปิดให้ Staff ดูได้ก็เติม "Staff"
-    icon: ReceiptText,
+    icon: FileCheck,
   },
   {
     title: "Sales Reports",
@@ -82,7 +84,7 @@ const items = [
     title: "Report",
     path: "/Owner/report",
     showFor: ["Owner"],
-    icon: ChartBarStacked,
+    icon: ChartNoAxesCombined,
   },
   {
     title: "Employees",

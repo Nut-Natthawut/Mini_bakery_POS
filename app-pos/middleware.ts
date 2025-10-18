@@ -4,28 +4,33 @@ import { verifyToken } from '@/lib/auth';
 
 // อนุญาตให้ Staff เข้าได้เฉพาะ path เหล่านี้ “ภายใต้ /Owner”
 const ALLOWED_STAFF_UNDER_OWNER = [
-  '/Owner/menu',     // เพิ่มรายการอื่นค่อยเติมในลิสต์นี้
-  // '/Owner/menu/', // ถ้าต้องการให้เป็น prefix ลูกเส้นทางของ /Owner/menu
+  '/Owner/home',    // หน้า dashboard สำหรับ staff
+  '/Owner/menu',    // เมนูสินค้า
+  '/Owner/orders',  // รายการออเดอร์
 ];
 
 function allowedForStaffUnderOwner(pathname: string) {
+  const normalizedPath = pathname.toLowerCase();
   for (const rule of ALLOWED_STAFF_UNDER_OWNER) {
     if (rule.endsWith('/')) {
-      if (pathname.startsWith(rule)) return true;   // prefix
-    } else {
-      if (pathname === rule) return true;           // exact
+      if (normalizedPath.startsWith(rule)) return true;   // prefix
+      continue;
     }
+
+    if (normalizedPath === rule) return true;             // exact match
+    if (normalizedPath.startsWith(`${rule}/`)) return true; // sub-path เช่น /owner/orders/123
   }
   return false;
 }
 
 export function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
+  const normalizedPath = pathname.toLowerCase();
   const token = request.cookies.get('token')?.value;
 
-  const isOwnerArea = pathname.startsWith('/Owner');
-  const isStaffArea = pathname.startsWith('/staff');
-  const isApiUser   = pathname.startsWith('/api/user');
+  const isOwnerArea = normalizedPath.startsWith('/owner');
+  const isStaffArea = normalizedPath.startsWith('/staff');
+  const isApiUser   = normalizedPath.startsWith('/api/user');
 
   if (!(isOwnerArea || isStaffArea || isApiUser)) return NextResponse.next();
 
@@ -39,8 +44,8 @@ export function middleware(request: NextRequest) {
 
   // สำคัญ: ถ้าเป็น Staff และอยู่ใต้ /Owner → ต้องอยู่ใน allow-list เท่านั้น
   if (payload.role === 'Staff' && isOwnerArea) {
-    if (!allowedForStaffUnderOwner(pathname)) {
-      return NextResponse.redirect(new URL('/Owner/menu', request.url));
+    if (!allowedForStaffUnderOwner(normalizedPath)) {
+      return NextResponse.redirect(new URL('/Owner/home', request.url));
       // หรือ rewrite('/unauthorized') ถ้าต้องการหน้า 403
     }
     return NextResponse.next(); // ผ่านแล้วจบ ไม่ต้องเช็ค Owner-only ต่อ

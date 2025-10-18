@@ -1,17 +1,12 @@
 import MenuList from './menuList';
-import { redirect } from 'next/navigation';
-import { getTokenPayload } from '@/lib/auth-helpers';  
-
+import { requireOwnerPage } from '@/lib/page-guards';
 
 export default async function EditMenuPage() {
-  const payload = getTokenPayload();
-  if (!payload || payload.role !== 'Owner') {
-    redirect('/unauthorized');
-  }
+  await requireOwnerPage();
   return (
     <div className="w-full p-8">
       <MenuList />
     </div>
   );
-};
+}
 

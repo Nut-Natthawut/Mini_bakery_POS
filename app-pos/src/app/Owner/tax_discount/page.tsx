@@ -1,7 +1,7 @@
 import DiscoutManage from "./discoutmanage";
+import { requireOwnerPage } from "@/lib/page-guards";
 
-const Tax_Discount = () => {
+export default async function TaxDiscountPage() {
+  await requireOwnerPage();
   return <DiscoutManage />;
-};
-
-export default Tax_Discount;
+}
