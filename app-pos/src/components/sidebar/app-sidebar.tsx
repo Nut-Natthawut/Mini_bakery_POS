@@ -63,7 +63,7 @@ const items = [
   {
     title: "Orders",              // รายการออเดอร์ (ทุกสถานะ)
     path: "/Owner/orders",
-    showFor: ["Owner"],           // จะให้ Staff เห็นก็เพิ่ม "Staff"
+    showFor: ["Staff", "Owner"],          // จะให้ Staff เห็นก็เพิ่ม "Staff"
     icon: ReceiptText,
   },
   {
