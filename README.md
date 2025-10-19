@@ -49,7 +49,6 @@ MiniBakery_POS/
 ├── app-pos/                     # Source code หลัก
 │   ├── prisma/                  # Schema และ migration ของฐานข้อมูล
 │   ├── src/app/Owner/           # ส่วน Owner UI (จัดการเมนู, ผู้ใช้)
-│   ├── src/app/Staff/           # ส่วน Staff UI (หน้าขาย, สร้างบิล)
 │   ├── lib/                     # Helper เช่น supabaseClient, auth
 │   ├── types/                   # TypeScript types และ schema validation
 │   └── components/              # UI components และฟอร์ม
@@ -62,7 +61,7 @@ MiniBakery_POS/
 
 วิธีติดตั้งและใช้งาน
 
-1. Clone โปรเจกต์ฃ
+1. Clone โปรเจกต์
 
 git clone https://github.com/Nut-Natthawut/Mini_bakery_POS.git
 cd Mini_bakery_POS/app-pos
@@ -75,6 +74,7 @@ npm install
 
 สร้างไฟล์ .env แล้วใส่ข้อมูลดังนี้
 (ใช้ค่า PostgreSQL ของคุณเอง)
+
 DATABASE_URL="postgresql://user:password@host:port/dbname"
 DIRECT_URL="postgresql://user:password@host:port/dbname"
 NEXT_PUBLIC_SUPABASE_URL="https://xxxxxxxx.supabase.co"
