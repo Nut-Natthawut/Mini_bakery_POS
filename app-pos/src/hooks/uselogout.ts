@@ -13,9 +13,8 @@ const useLogout = () => {
           autoClose: 2000,
         });
 
-        setTimeout(() => {
-          router.replace("/login");
-        }, 2000);
+        router.replace("/login");
+        router.refresh();
       } else {
         toast.error("Logout failed. Please try again.");
         return;

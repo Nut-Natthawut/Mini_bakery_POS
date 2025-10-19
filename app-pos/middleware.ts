@@ -9,6 +9,14 @@ const ALLOWED_STAFF_UNDER_OWNER = [
   '/Owner/orders',  // รายการออเดอร์
 ];
 
+function allow() {
+  const response = NextResponse.next();
+  response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+  response.headers.set('Pragma', 'no-cache');
+  response.headers.set('Expires', '0');
+  return response;
+}
+
 function allowedForStaffUnderOwner(pathname: string) {
   const normalizedPath = pathname.toLowerCase();
   for (const rule of ALLOWED_STAFF_UNDER_OWNER) {
@@ -48,7 +56,7 @@ export function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL('/Owner/home', request.url));
       // หรือ rewrite('/unauthorized') ถ้าต้องการหน้า 403
     }
-    return NextResponse.next(); // ผ่านแล้วจบ ไม่ต้องเช็ค Owner-only ต่อ
+    return allow(); // ผ่านแล้วจบ ไม่ต้องเช็ค Owner-only ต่อ
   }
 
   // Owner-only: ใต้ /Owner คนที่ไม่ใช่ Owner ห้ามเข้า
@@ -61,7 +69,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/unauthorized', request.url));
   }
 
-  return NextResponse.next();
+  return allow();
 }
 
 export const config = {

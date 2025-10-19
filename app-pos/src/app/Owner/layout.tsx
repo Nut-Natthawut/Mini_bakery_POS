@@ -1,6 +1,8 @@
 // app/Owner/layout.tsx 
+import { redirect } from "next/navigation";
 import { AppSidebar } from "@/components/sidebar/app-sidebar";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { getTokenPayload } from "@/lib/auth-helpers";
 import AppToaster from "@/components/ui/AppToaster"; 
 
 
@@ -9,6 +11,11 @@ export default function OwnerLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const payload = getTokenPayload();
+  if (!payload) {
+    redirect("/login");
+  }
+
   return (
     <>
       <SidebarProvider className="h-screen w-full bg-[#FFFDE4]">
