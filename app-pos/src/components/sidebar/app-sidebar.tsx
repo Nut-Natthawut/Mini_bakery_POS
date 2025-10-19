@@ -81,7 +81,7 @@ const items = [
     icon: BadgeDollarSign,
   },
   {
-    title: "Report",
+    title: "Summary Report ",
     path: "/Owner/report",
     showFor: ["Owner"],
     icon: ChartNoAxesCombined,
