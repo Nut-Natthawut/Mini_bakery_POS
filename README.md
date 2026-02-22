@@ -1,6 +1,6 @@
 <p align="center">
-  <!-- TODO: Update with actual screenshot -->
-  <img src="docs/screenshots/dashboard.png" alt="Mini Bakery POS System" width="600" />
+  <!-- TODO: Add actual screenshot of the app here -->
+  <!-- <img src="docs/screenshots/dashboard.png" alt="Mini Bakery POS System" width="600" /> -->
 </p>
 
 <h1 align="center">🥐 Mini Bakery POS (Point of Sale)</h1>
