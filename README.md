@@ -1,6 +1,6 @@
 <p align="center">
   <img src="docs/screenshots/dashboard.png" alt="Mini Bakery POS System" width="600" />
-  <img src="docs/screenshots/Screenshot 2026-02-22 at 15.48.10.png" alt="Mini Bakery POS System" width="600" />
+  <img src="docs/screenshots/Screenshot%202569-02-22%20at%2014.50.17.png" alt="Mini Bakery POS System" width="600" />
 </p>
 
 <h1 align="center">🥐 Mini Bakery POS (Point of Sale)</h1>
